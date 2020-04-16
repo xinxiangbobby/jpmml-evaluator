@@ -30,12 +30,12 @@ import com.google.common.collect.ImmutableBiMap;
 import org.dmg.pmml.CompoundPredicate;
 import org.dmg.pmml.EmbeddedModel;
 import org.dmg.pmml.FieldName;
-import org.dmg.pmml.MathContext;
-import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.Predicate;
 import org.dmg.pmml.ScoreDistribution;
 import org.dmg.pmml.tree.Node;
+import org.dmg.pmml.tree.PMMLAttributes;
+import org.dmg.pmml.tree.PMMLElements;
 import org.dmg.pmml.tree.TreeModel;
 import org.jpmml.evaluator.CacheUtil;
 import org.jpmml.evaluator.EntityUtil;
@@ -45,11 +45,7 @@ import org.jpmml.evaluator.InvalidAttributeException;
 import org.jpmml.evaluator.MisplacedAttributeException;
 import org.jpmml.evaluator.MissingAttributeException;
 import org.jpmml.evaluator.MissingElementException;
-import org.jpmml.evaluator.ModelEvaluationContext;
 import org.jpmml.evaluator.ModelEvaluator;
-import org.jpmml.evaluator.OutputUtil;
-import org.jpmml.evaluator.PMMLAttributes;
-import org.jpmml.evaluator.PMMLElements;
 import org.jpmml.evaluator.PMMLUtil;
 import org.jpmml.evaluator.PredicateUtil;
 import org.jpmml.evaluator.TargetField;
@@ -106,45 +102,7 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 	}
 
 	@Override
-	public Map<FieldName, ?> evaluate(ModelEvaluationContext context){
-		TreeModel treeModel = ensureScorableModel();
-
-		ValueFactory<?> valueFactory;
-
-		MathContext mathContext = treeModel.getMathContext();
-		switch(mathContext){
-			case FLOAT:
-			case DOUBLE:
-				valueFactory = ensureValueFactory();
-				break;
-			default:
-				throw new UnsupportedAttributeException(treeModel, mathContext);
-		}
-
-		Map<FieldName, ?> predictions;
-
-		MiningFunction miningFunction = treeModel.getMiningFunction();
-		switch(miningFunction){
-			case REGRESSION:
-				predictions = evaluateRegression(valueFactory, context);
-				break;
-			case CLASSIFICATION:
-				predictions = evaluateClassification(valueFactory, context);
-				break;
-			case ASSOCIATION_RULES:
-			case SEQUENCES:
-			case CLUSTERING:
-			case TIME_SERIES:
-			case MIXED:
-				throw new InvalidAttributeException(treeModel, miningFunction);
-			default:
-				throw new UnsupportedAttributeException(treeModel, miningFunction);
-		}
-
-		return OutputUtil.evaluate(predictions, context);
-	}
-
-	private <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
+	protected <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
 		TargetField targetField = getTargetField();
 
 		Trail trail = new Trail();
@@ -159,7 +117,8 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 		return TargetUtil.evaluateRegression(targetField, result);
 	}
 
-	private <V extends Number> Map<FieldName, ?> evaluateClassification(ValueFactory<V> valueFactory, EvaluationContext context){
+	@Override
+	protected <V extends Number> Map<FieldName, ?> evaluateClassification(ValueFactory<V> valueFactory, EvaluationContext context){
 		TreeModel treeModel = getModel();
 
 		TargetField targetField = getTargetField();
@@ -181,7 +140,11 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 
 		int missingLevels = trail.getMissingLevels();
 		if(missingLevels > 0){
-			missingValuePenalty = Math.pow(treeModel.getMissingValuePenalty(), missingLevels);
+			missingValuePenalty = (treeModel.getMissingValuePenalty()).doubleValue();
+
+			if(missingLevels > 1){
+				missingValuePenalty = Math.pow(missingValuePenalty, missingLevels);
+			}
 		}
 
 		NodeScoreDistribution<V> result = createNodeScoreDistribution(valueFactory, node, missingValuePenalty);
@@ -203,7 +166,7 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 
 			// "It is not possible that the scoring process ends in a Node which does not have a score attribute"
 			if(node != null && !node.hasScore()){
-				throw new MissingAttributeException(node, PMMLAttributes.NODE_SCORE);
+				throw new MissingAttributeException(node, PMMLAttributes.COMPLEXNODE_SCORE);
 			}
 
 			return node;
@@ -272,18 +235,24 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 	private Trail handleDefaultChild(Trail trail, Node node, EvaluationContext context){
 
 		// "The defaultChild missing value strategy requires the presence of the defaultChild attribute in every non-leaf Node"
-		String defaultChild = node.getDefaultChild();
+		Object defaultChild = node.getDefaultChild();
 		if(defaultChild == null){
-			throw new MissingAttributeException(node, PMMLAttributes.NODE_DEFAULTCHILD);
+			throw new MissingAttributeException(node, PMMLAttributes.COMPLEXNODE_DEFAULTCHILD);
 		}
 
 		trail.addMissingLevel();
+
+		if(defaultChild instanceof Node){
+			Node child = (Node)defaultChild;
+
+			return handleTrue(trail, child, context);
+		}
 
 		List<Node> children = node.getNodes();
 		for(int i = 0, max = children.size(); i < max; i++){
 			Node child = children.get(i);
 
-			String id = child.getId();
+			Object id = child.getId();
 			if(id != null && (id).equals(defaultChild)){
 				// The predicate of the referenced Node is not evaluated
 				return handleTrue(trail, child, context);
@@ -291,7 +260,7 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 		}
 
 		// "Only Nodes which are immediate children of the respective Node can be referenced"
-		throw new InvalidAttributeException(node, PMMLAttributes.NODE_DEFAULTCHILD, defaultChild);
+		throw new InvalidAttributeException(node, PMMLAttributes.COMPLEXNODE_DEFAULTCHILD, defaultChild);
 	}
 
 	private Trail handleNoTrueChild(Trail trail){
@@ -337,7 +306,17 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 	}
 
 	private <V extends Number> NodeScore<V> createNodeScore(ValueFactory<V> valueFactory, TargetField targetField, Node node){
-		Value<V> value = valueFactory.newValue(node.getScore());
+		Object score = node.getScore();
+
+		Value<V> value;
+
+		if(score instanceof Number){
+			value = valueFactory.newValue((Number)score);
+		} else
+
+		{
+			value = valueFactory.newValue((String)score);
+		}
 
 		value = TargetUtil.evaluateRegressionInternal(targetField, value);
 
@@ -377,7 +356,7 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 	private <V extends Number> NodeScoreDistribution<V> createNodeScoreDistribution(ValueFactory<V> valueFactory, Node node, double missingValuePenalty){
 		List<ScoreDistribution> scoreDistributions = node.getScoreDistributions();
 
-		NodeScoreDistribution<V> result = new NodeScoreDistribution<V>(new ValueMap<String, V>(2 * scoreDistributions.size()), node){
+		NodeScoreDistribution<V> result = new NodeScoreDistribution<V>(new ValueMap<Object, V>(2 * scoreDistributions.size()), node){
 
 			@Override
 			public BiMap<String, Node> getEntityRegistry(){
@@ -398,7 +377,7 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 		for(int i = 0, max = scoreDistributions.size(); i < max; i++){
 			ScoreDistribution scoreDistribution = scoreDistributions.get(i);
 
-			Double probability = scoreDistribution.getProbability();
+			Number probability = scoreDistribution.getProbability();
 
 			if(i == 0){
 				hasProbabilities = (probability != null);
@@ -409,11 +388,11 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 			if(hasProbabilities){
 
 				if(probability == null){
-					throw new MissingAttributeException(scoreDistribution, PMMLAttributes.SCOREDISTRIBUTION_PROBABILITY);
+					throw new MissingAttributeException(scoreDistribution, org.dmg.pmml.PMMLAttributes.SCOREDISTRIBUTION_PROBABILITY);
 				} // End if
 
-				if(probability < 0d || probability > 1d){
-					throw new InvalidAttributeException(scoreDistribution, PMMLAttributes.SCOREDISTRIBUTION_PROBABILITY, probability);
+				if(probability.doubleValue() < 0d || probability.doubleValue() > 1d){
+					throw new InvalidAttributeException(scoreDistribution, org.dmg.pmml.PMMLAttributes.SCOREDISTRIBUTION_PROBABILITY, probability);
 				}
 
 				sum.add(probability);
@@ -423,36 +402,40 @@ public class TreeModelEvaluator extends ModelEvaluator<TreeModel> implements Has
 
 			{
 				if(probability != null){
-					throw new MisplacedAttributeException(scoreDistribution, PMMLAttributes.SCOREDISTRIBUTION_PROBABILITY, probability);
+					throw new MisplacedAttributeException(scoreDistribution, org.dmg.pmml.PMMLAttributes.SCOREDISTRIBUTION_PROBABILITY, probability);
 				}
 
-				double recordCount = scoreDistribution.getRecordCount();
-				if(recordCount != 0d){
-					sum.add(recordCount);
+				Number recordCount = scoreDistribution.getRecordCount();
+				if(recordCount == null){
+					throw new MissingAttributeException(scoreDistribution, org.dmg.pmml.PMMLAttributes.SCOREDISTRIBUTION_RECORDCOUNT);
 				}
+
+				sum.add(recordCount);
 
 				value = valueFactory.newValue(recordCount);
 			}
 
-			result.put(scoreDistribution.getValue(), value);
+			Object targetCategory = scoreDistribution.getValue();
+			if(targetCategory == null){
+				throw new MissingAttributeException(scoreDistribution, org.dmg.pmml.PMMLAttributes.SCOREDISTRIBUTION_VALUE);
+			}
 
-			Double confidence = scoreDistribution.getConfidence();
+			result.put(targetCategory, value);
+
+			Number confidence = scoreDistribution.getConfidence();
 			if(confidence != null){
-				value = valueFactory.newValue(confidence);
+				value = valueFactory.newValue(confidence)
+					.multiply(missingValuePenalty);
 
-				if(missingValuePenalty != 1d){
-					value.multiply(missingValuePenalty);
-				}
-
-				result.putConfidence(scoreDistribution.getValue(), value);
+				result.putConfidence(targetCategory, value);
 			}
 		}
 
 		// "The predicted probabilities must sum to 1"
-		if(!sum.equals(1d)){
-			ValueMap<String, V> values = result.getValues();
+		if(!sum.isOne()){
+			ValueMap<Object, V> values = result.getValues();
 
-			if(sum.equals(0d)){
+			if(sum.isZero()){
 				throw new UndefinedResultException();
 			}
 

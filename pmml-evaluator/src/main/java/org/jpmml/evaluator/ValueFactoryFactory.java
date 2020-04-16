@@ -53,11 +53,6 @@ public class ValueFactoryFactory implements Serializable {
 		}
 
 		@Override
-		public Value<Float> newValue(double value){
-			return new FloatValue((float)value);
-		}
-
-		@Override
 		public Value<Float> newValue(Number value){
 			return new FloatValue(value.floatValue());
 		}
@@ -89,11 +84,6 @@ public class ValueFactoryFactory implements Serializable {
 		}
 
 		@Override
-		public Value<Double> newValue(double value){
-			return new DoubleValue(value);
-		}
-
-		@Override
 		public Value<Double> newValue(Number value){
 			return new DoubleValue(value.doubleValue());
 		}
@@ -114,5 +104,5 @@ public class ValueFactoryFactory implements Serializable {
 		}
 
 		public static final DoubleValueFactory INSTANCE = new DoubleValueFactory();
-	};
+	}
 }

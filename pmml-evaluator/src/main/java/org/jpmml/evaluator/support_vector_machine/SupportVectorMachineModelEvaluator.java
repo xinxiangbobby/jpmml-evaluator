@@ -27,21 +27,21 @@
  */
 package org.jpmml.evaluator.support_vector_machine;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Doubles;
+import com.google.common.primitives.Floats;
 import org.dmg.pmml.Array;
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.FieldRef;
 import org.dmg.pmml.MathContext;
-import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.PMMLObject;
 import org.dmg.pmml.RealSparseArray;
@@ -49,6 +49,8 @@ import org.dmg.pmml.regression.CategoricalPredictor;
 import org.dmg.pmml.support_vector_machine.Coefficient;
 import org.dmg.pmml.support_vector_machine.Coefficients;
 import org.dmg.pmml.support_vector_machine.Kernel;
+import org.dmg.pmml.support_vector_machine.PMMLAttributes;
+import org.dmg.pmml.support_vector_machine.PMMLElements;
 import org.dmg.pmml.support_vector_machine.SupportVector;
 import org.dmg.pmml.support_vector_machine.SupportVectorMachine;
 import org.dmg.pmml.support_vector_machine.SupportVectorMachineModel;
@@ -63,7 +65,7 @@ import org.jpmml.evaluator.EvaluationContext;
 import org.jpmml.evaluator.EvaluationException;
 import org.jpmml.evaluator.ExpressionUtil;
 import org.jpmml.evaluator.FieldValue;
-import org.jpmml.evaluator.FieldValues;
+import org.jpmml.evaluator.FieldValueUtil;
 import org.jpmml.evaluator.InvalidAttributeException;
 import org.jpmml.evaluator.InvalidElementException;
 import org.jpmml.evaluator.InvalidElementListException;
@@ -72,11 +74,8 @@ import org.jpmml.evaluator.MisplacedElementException;
 import org.jpmml.evaluator.MissingAttributeException;
 import org.jpmml.evaluator.MissingElementException;
 import org.jpmml.evaluator.MissingValueException;
-import org.jpmml.evaluator.ModelEvaluationContext;
 import org.jpmml.evaluator.ModelEvaluator;
-import org.jpmml.evaluator.OutputUtil;
-import org.jpmml.evaluator.PMMLAttributes;
-import org.jpmml.evaluator.PMMLElements;
+import org.jpmml.evaluator.Numbers;
 import org.jpmml.evaluator.PMMLException;
 import org.jpmml.evaluator.PMMLUtil;
 import org.jpmml.evaluator.SparseArrayUtil;
@@ -85,13 +84,13 @@ import org.jpmml.evaluator.UnsupportedAttributeException;
 import org.jpmml.evaluator.Value;
 import org.jpmml.evaluator.ValueFactory;
 import org.jpmml.evaluator.ValueMap;
-import org.jpmml.evaluator.XPathUtil;
 import org.jpmml.model.ReflectionUtil;
+import org.jpmml.model.XPathUtil;
 
 public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVectorMachineModel> {
 
 	transient
-	private Map<String, double[]> vectorMap = null;
+	private Map<String, Object> vectorMap = null;
 
 
 	public SupportVectorMachineModelEvaluator(PMML pmml){
@@ -135,44 +134,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 	}
 
 	@Override
-	public Map<FieldName, ?> evaluate(ModelEvaluationContext context){
-		SupportVectorMachineModel supportVectorMachineModel = ensureScorableModel();
-
-		ValueFactory<Double> valueFactory;
-
-		MathContext mathContext = supportVectorMachineModel.getMathContext();
-		switch(mathContext){
-			case DOUBLE:
-				valueFactory = (ValueFactory)ensureValueFactory();
-				break;
-			default:
-				throw new UnsupportedAttributeException(supportVectorMachineModel, mathContext);
-		}
-
-		Map<FieldName, ?> predictions;
-
-		MiningFunction miningFunction = supportVectorMachineModel.getMiningFunction();
-		switch(miningFunction){
-			case REGRESSION:
-				predictions = evaluateRegression(valueFactory, context);
-				break;
-			case CLASSIFICATION:
-				predictions = evaluateClassification(valueFactory, context);
-				break;
-			case ASSOCIATION_RULES:
-			case SEQUENCES:
-			case CLUSTERING:
-			case TIME_SERIES:
-			case MIXED:
-				throw new InvalidAttributeException(supportVectorMachineModel, miningFunction);
-			default:
-				throw new UnsupportedAttributeException(supportVectorMachineModel, miningFunction);
-		}
-
-		return OutputUtil.evaluate(predictions, context);
-	}
-
-	private Map<FieldName, ?> evaluateRegression(ValueFactory<Double> valueFactory, EvaluationContext context){
+	protected <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
 		SupportVectorMachineModel supportVectorMachineModel = getModel();
 
 		List<SupportVectorMachine> supportVectorMachines = supportVectorMachineModel.getSupportVectorMachines();
@@ -182,21 +144,22 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 
 		SupportVectorMachine supportVectorMachine = supportVectorMachines.get(0);
 
-		double[] input = createInput(context);
+		Object input = createInput(context);
 
-		Value<Double> result = evaluateSupportVectorMachine(valueFactory, supportVectorMachine, input);
+		Value<V> result = evaluateSupportVectorMachine(valueFactory, supportVectorMachine, input);
 
 		return TargetUtil.evaluateRegression(getTargetField(), result);
 	}
 
-	private Map<FieldName, ? extends Classification<Double>> evaluateClassification(ValueFactory<Double> valueFactory, EvaluationContext context){
+	@Override
+	protected <V extends Number> Map<FieldName, ? extends Classification<?, V>> evaluateClassification(ValueFactory<V> valueFactory, EvaluationContext context){
 		SupportVectorMachineModel supportVectorMachineModel = getModel();
 
 		List<SupportVectorMachine> supportVectorMachines = supportVectorMachineModel.getSupportVectorMachines();
 
-		String alternateBinaryTargetCategory = supportVectorMachineModel.getAlternateBinaryTargetCategory();
+		Object alternateBinaryTargetCategory = supportVectorMachineModel.getAlternateBinaryTargetCategory();
 
-		ValueMap<String, Double> values;
+		ValueMap<Object, V> values;
 
 		SupportVectorMachineModel.ClassificationMethod classificationMethod = getClassificationMethod();
 		switch(classificationMethod){
@@ -204,10 +167,10 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 				values = new ValueMap<>(2 * supportVectorMachines.size());
 				break;
 			case ONE_AGAINST_ONE:
-				values = new VoteMap<String, Double>(2 * supportVectorMachines.size()){
+				values = new VoteMap<Object, V>(2 * supportVectorMachines.size()){
 
 					@Override
-					public ValueFactory<Double> getValueFactory(){
+					public ValueFactory<V> getValueFactory(){
 						return valueFactory;
 					}
 				};
@@ -216,17 +179,17 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 				throw new UnsupportedAttributeException(supportVectorMachineModel, classificationMethod);
 		}
 
-		double[] input = createInput(context);
+		Object input = createInput(context);
 
 		for(SupportVectorMachine supportVectorMachine : supportVectorMachines){
-			String targetCategory = supportVectorMachine.getTargetCategory();
+			Object targetCategory = supportVectorMachine.getTargetCategory();
 			if(targetCategory == null){
 				throw new MissingAttributeException(supportVectorMachine, PMMLAttributes.SUPPORTVECTORMACHINE_TARGETCATEGORY);
 			}
 
-			String alternateTargetCategory = supportVectorMachine.getAlternateTargetCategory();
+			Object alternateTargetCategory = supportVectorMachine.getAlternateTargetCategory();
 
-			Value<Double> value = evaluateSupportVectorMachine(valueFactory, supportVectorMachine, input);
+			Value<V> value = evaluateSupportVectorMachine(valueFactory, supportVectorMachine, input);
 
 			switch(classificationMethod){
 				case ONE_AGAINST_ALL:
@@ -240,7 +203,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 					break;
 				case ONE_AGAINST_ONE:
 					{
-						String label;
+						Object label;
 
 						if(alternateBinaryTargetCategory != null){
 
@@ -250,19 +213,19 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 
 							value.round();
 
-							// "A rounded value of 1 corresponds to the targetCategory attribute of the SupportVectorMachine element"
-							if(value.equals(1d)){
-								label = targetCategory;
+							// "A rounded value of 0 corresponds to the alternateBinaryTargetCategory attribute of the SupportVectorMachineModel element"
+							if(value.isZero()){
+								label = alternateBinaryTargetCategory;
 							} else
 
-							// "A rounded value of 0 corresponds to the alternateBinaryTargetCategory attribute of the SupportVectorMachineModel element"
-							if(value.equals(0d)){
-								label = alternateBinaryTargetCategory;
+							// "A rounded value of 1 corresponds to the targetCategory attribute of the SupportVectorMachine element"
+							if(value.isOne()){
+								label = targetCategory;
 							} else
 
 							// "The numeric prediction must be between 0 and 1"
 							{
-								throw new EvaluationException("Expected " + PMMLException.formatValue(0d) + " or " + PMMLException.formatValue(1d) + ", got " + PMMLException.formatValue(value.getValue()));
+								throw new EvaluationException("Expected " + PMMLException.formatValue(Numbers.DOUBLE_ZERO) + " or " + PMMLException.formatValue(Numbers.DOUBLE_ONE) + ", got " + PMMLException.formatValue(value.getValue()));
 							}
 						} else
 
@@ -271,7 +234,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 								throw new MissingAttributeException(supportVectorMachine, PMMLAttributes.SUPPORTVECTORMACHINE_ALTERNATETARGETCATEGORY);
 							}
 
-							Double threshold = supportVectorMachine.getThreshold();
+							Number threshold = supportVectorMachine.getThreshold();
 							if(threshold == null){
 								threshold = supportVectorMachineModel.getThreshold();
 							} // End if
@@ -286,7 +249,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 							}
 						}
 
-						VoteMap<String, Double> votes = (VoteMap<String, Double>)values;
+						VoteMap<Object, V> votes = (VoteMap<Object, V>)values;
 
 						votes.increment(label);
 					}
@@ -296,7 +259,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 			}
 		}
 
-		Classification<Double> result;
+		Classification<?, V> result;
 
 		switch(classificationMethod){
 			case ONE_AGAINST_ALL:
@@ -312,10 +275,10 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 		return TargetUtil.evaluateClassification(getTargetField(), result);
 	}
 
-	private Value<Double> evaluateSupportVectorMachine(ValueFactory<Double> valueFactory, SupportVectorMachine supportVectorMachine, double[] input){
+	private <V extends Number> Value<V> evaluateSupportVectorMachine(ValueFactory<V> valueFactory, SupportVectorMachine supportVectorMachine, Object input){
 		SupportVectorMachineModel supportVectorMachineModel = getModel();
 
-		Value<Double> result = valueFactory.newValue();
+		Value<V> result = valueFactory.newValue();
 
 		Kernel kernel = supportVectorMachineModel.getKernel();
 		if(kernel == null){
@@ -328,7 +291,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 		SupportVectors supportVectors = supportVectorMachine.getSupportVectors();
 		Iterator<SupportVector> supportVectorIt = supportVectors.iterator();
 
-		Map<String, double[]> vectorMap = getVectorMap();
+		Map<String, Object> vectorMap = getVectorMap();
 
 		while(coefficientIt.hasNext() && supportVectorIt.hasNext()){
 			Coefficient coefficient = coefficientIt.next();
@@ -339,22 +302,21 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 				throw new MissingAttributeException(supportVector, PMMLAttributes.SUPPORTVECTOR_VECTORID);
 			}
 
-			double[] vector = vectorMap.get(vectorId);
+			Object vector = vectorMap.get(vectorId);
 			if(vector == null){
 				throw new InvalidAttributeException(supportVector, PMMLAttributes.SUPPORTVECTOR_VECTORID, vectorId);
 			}
 
-			result.add(coefficient.getValue(), KernelUtil.evaluate(kernel, input, vector));
+			Value<V> value = KernelUtil.evaluate(kernel, valueFactory, input, vector);
+
+			result.add(coefficient.getValue(), value.getValue());
 		}
 
 		if(coefficientIt.hasNext() || supportVectorIt.hasNext()){
 			throw new InvalidElementException(supportVectorMachine);
 		}
 
-		double absoluteValue = coefficients.getAbsoluteValue();
-		if(absoluteValue != 0d){
-			result.add(absoluteValue);
-		}
+		result.add(coefficients.getAbsoluteValue());
 
 		return result;
 	}
@@ -372,13 +334,13 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 
 		List<SupportVectorMachine> supportVectorMachines = supportVectorMachineModel.getSupportVectorMachines();
 
-		String alternateBinaryTargetCategory = supportVectorMachineModel.getAlternateBinaryTargetCategory();
+		Object alternateBinaryTargetCategory = supportVectorMachineModel.getAlternateBinaryTargetCategory();
 		if(alternateBinaryTargetCategory != null){
 
 			if(supportVectorMachines.size() == 1){
 				SupportVectorMachine supportVectorMachine = supportVectorMachines.get(0);
 
-				String targetCategory = supportVectorMachine.getTargetCategory();
+				Object targetCategory = supportVectorMachine.getTargetCategory();
 				if(targetCategory != null){
 					return SupportVectorMachineModel.ClassificationMethod.ONE_AGAINST_ONE;
 				}
@@ -390,8 +352,8 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 		}
 
 		for(SupportVectorMachine supportVectorMachine : supportVectorMachines){
-			String targetCategory = supportVectorMachine.getTargetCategory();
-			String alternateTargetCategory = supportVectorMachine.getAlternateTargetCategory();
+			Object targetCategory = supportVectorMachine.getTargetCategory();
+			Object alternateTargetCategory = supportVectorMachine.getAlternateTargetCategory();
 
 			if(targetCategory != null){
 
@@ -408,7 +370,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 		throw new InvalidElementException(supportVectorMachineModel);
 	}
 
-	private double[] createInput(EvaluationContext context){
+	private Object createInput(EvaluationContext context){
 		SupportVectorMachineModel supportVectorMachineModel = getModel();
 
 		VectorDictionary vectorDictionary = supportVectorMachineModel.getVectorDictionary();
@@ -417,22 +379,22 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 
 		List<PMMLObject> content = vectorFields.getContent();
 
-		double[] result = new double[content.size()];
+		List<Number> result = new ArrayList<>(content.size());
 
 		for(int i = 0; i < content.size(); i++){
 			PMMLObject object = content.get(i);
 
 			if(object instanceof FieldRef){
-				FieldRef fieldRef = (FieldRef)content.get(i);
+				FieldRef fieldRef = (FieldRef)object;
 
 				FieldName name = fieldRef.getField();
 
 				FieldValue value = ExpressionUtil.evaluate(fieldRef, context);
-				if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+				if(FieldValueUtil.isMissing(value)){
 					throw new MissingValueException(name, vectorFields);
 				}
 
-				result[i] = (value.asNumber()).doubleValue();
+				result.add(value.asNumber());
 			} else
 
 			if(object instanceof CategoricalPredictor){
@@ -440,22 +402,22 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 
 				FieldName name = categoricalPredictor.getName();
 				if(name == null){
-					throw new MissingAttributeException(categoricalPredictor, PMMLAttributes.CATEGORICALPREDICTOR_FIELD);
+					throw new MissingAttributeException(categoricalPredictor, org.dmg.pmml.regression.PMMLAttributes.CATEGORICALPREDICTOR_FIELD);
 				}
 
 				FieldValue value = context.evaluate(name);
-				if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+				if(FieldValueUtil.isMissing(value)){
 					throw new MissingValueException(name, categoricalPredictor);
 				}
 
-				double coefficient = categoricalPredictor.getCoefficient();
-				if(coefficient != 1d){
-					throw new InvalidAttributeException(categoricalPredictor, PMMLAttributes.CATEGORICALPREDICTOR_COEFFICIENT, coefficient);
+				Number coefficient = categoricalPredictor.getCoefficient();
+				if(coefficient != null && coefficient.doubleValue() != 1d){
+					throw new InvalidAttributeException(categoricalPredictor, org.dmg.pmml.regression.PMMLAttributes.CATEGORICALPREDICTOR_COEFFICIENT, coefficient);
 				}
 
 				boolean equals = value.equals(categoricalPredictor);
 
-				result[i] = (equals ? 1d : 0d);
+				result.add(equals ? Numbers.DOUBLE_ONE : Numbers.DOUBLE_ZERO);
 			} else
 
 			{
@@ -463,10 +425,10 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 			}
 		}
 
-		return result;
+		return toArray(supportVectorMachineModel, result);
 	}
 
-	private Map<String, double[]> getVectorMap(){
+	private Map<String, Object> getVectorMap(){
 
 		if(this.vectorMap == null){
 			this.vectorMap = getValue(SupportVectorMachineModelEvaluator.vectorCache);
@@ -476,14 +438,14 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 	}
 
 	static
-	private Map<String, double[]> parseVectorDictionary(SupportVectorMachineModel supportVectorMachineModel){
+	private Map<String, Object> parseVectorDictionary(SupportVectorMachineModel supportVectorMachineModel){
 		VectorDictionary vectorDictionary = supportVectorMachineModel.getVectorDictionary();
 
 		VectorFields vectorFields = vectorDictionary.getVectorFields();
 
 		List<PMMLObject> content = vectorFields.getContent();
 
-		Map<String, double[]> result = new LinkedHashMap<>();
+		Map<String, Object> result = new LinkedHashMap<>();
 
 		List<VectorInstance> vectorInstances = vectorDictionary.getVectorInstances();
 		for(VectorInstance vectorInstance : vectorInstances){
@@ -513,7 +475,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 				throw new InvalidElementException(vectorInstance);
 			}
 
-			double[] vector = Doubles.toArray(values);
+			Object vector = toArray(supportVectorMachineModel, values);
 
 			result.put(id, vector);
 		}
@@ -521,10 +483,24 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 		return result;
 	}
 
-	private static final LoadingCache<SupportVectorMachineModel, Map<String, double[]>> vectorCache = CacheUtil.buildLoadingCache(new CacheLoader<SupportVectorMachineModel, Map<String, double[]>>(){
+	static
+	private Object toArray(SupportVectorMachineModel supportVectorMachineModel, List<? extends Number> values){
+		MathContext mathContext = supportVectorMachineModel.getMathContext();
+
+		switch(mathContext){
+			case FLOAT:
+				return Floats.toArray(values);
+			case DOUBLE:
+				return Doubles.toArray(values);
+			default:
+				throw new UnsupportedAttributeException(supportVectorMachineModel, mathContext);
+		}
+	}
+
+	private static final LoadingCache<SupportVectorMachineModel, Map<String, Object>> vectorCache = CacheUtil.buildLoadingCache(new CacheLoader<SupportVectorMachineModel, Map<String, Object>>(){
 
 		@Override
-		public Map<String, double[]> load(SupportVectorMachineModel supportVectorMachineModel){
+		public Map<String, Object> load(SupportVectorMachineModel supportVectorMachineModel){
 			return ImmutableMap.copyOf(parseVectorDictionary(supportVectorMachineModel));
 		}
 	});

@@ -46,13 +46,15 @@ import com.google.common.collect.Sets;
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.PMMLObject;
+import org.jpmml.evaluator.visitors.AttributeFinalizerBattery;
+import org.jpmml.evaluator.visitors.AttributeInternerBattery;
+import org.jpmml.evaluator.visitors.AttributeOptimizerBattery;
+import org.jpmml.evaluator.visitors.ElementFinalizerBattery;
 import org.jpmml.evaluator.visitors.ElementInternerBattery;
 import org.jpmml.evaluator.visitors.ElementOptimizerBattery;
-import org.jpmml.model.VisitorBattery;
-import org.jpmml.model.visitors.AttributeInternerBattery;
-import org.jpmml.model.visitors.ListFinalizerBattery;
 import org.jpmml.model.visitors.LocatorNullifier;
 import org.jpmml.model.visitors.MemoryMeasurer;
+import org.jpmml.model.visitors.VisitorBattery;
 
 public class EvaluationExample extends Example {
 
@@ -124,14 +126,33 @@ public class EvaluationExample extends Example {
 	private boolean sparse = false;
 
 	@Parameter (
-		names = {"--copy-columns"},
-		description = "Copy all columns from input CSV file to output CSV file",
+		names = {"--catch-errors"},
+		description = "Catch and process evaluation errors. If true, the main evaluation loop will run till completion",
 		arity = 1
 	)
 	@ParameterOrder (
 		value = 8
 	)
+	private boolean catchErrors = false;
+
+	@Parameter (
+		names = {"--copy-columns"},
+		description = "Copy all columns from input CSV file to output CSV file",
+		arity = 1
+	)
+	@ParameterOrder (
+		value = 9
+	)
 	private boolean copyColumns = true;
+
+	@Parameter (
+		names = {"--error-column"},
+		description = "The name of error column. This column is appended to output CSV file only in case of evaluation errors"
+	)
+	@ParameterOrder (
+		value = 10
+	)
+	private String errorColumn = "_error";
 
 	@Parameter (
 		names = {"--wait-before-init"},
@@ -149,17 +170,31 @@ public class EvaluationExample extends Example {
 
 	@Parameter (
 		names = {"--factory-class", "--modelevaluatorfactory-class"},
-		description = "Name of ModelEvaluatorFactory class",
+		description = "The name of ModelEvaluatorFactory class",
 		hidden = true
 	)
 	private String modelEvaluatorFactoryClazz = ModelEvaluatorFactory.class.getName();
 
 	@Parameter (
 		names = {"--valuefactoryfactory-class"},
-		description = "Name of ValueFactoryFactory class",
+		description = "The name of ValueFactoryFactory class",
 		hidden = true
 	)
 	private String valueFactoryFactoryClazz = ValueFactoryFactory.class.getName();
+
+	@Parameter (
+		names = {"--filter-output"},
+		description = "Exclude non-final output fields",
+		hidden = true
+	)
+	private boolean filterOutput = false;
+
+	@Parameter (
+		names = {"--safe"},
+		description = "Guard against ill-fated derived field and function evaluations",
+		hidden = true
+	)
+	private boolean safe = false;
 
 	@Parameter (
 		names = "--optimize",
@@ -227,7 +262,7 @@ public class EvaluationExample extends Example {
 			waitForUserInput();
 		}
 
-		PMML pmml = readPMML(this.model);
+		PMML pmml = readPMML(this.model, true);
 
 		if(this.cacheBuilderSpec != null){
 			CacheBuilderSpec cacheBuilderSpec = CacheBuilderSpec.parse(this.cacheBuilderSpec);
@@ -244,14 +279,18 @@ public class EvaluationExample extends Example {
 		// Optimize first, intern second.
 		// The goal is to intern optimized elements (keeps one copy), not optimize interned elements (expands one copy to multiple copies).
 		if(this.optimize){
+			visitorBattery.addAll(new AttributeOptimizerBattery());
 			visitorBattery.addAll(new ElementOptimizerBattery());
 		} // End if
 
 		if(this.intern){
 			visitorBattery.addAll(new AttributeInternerBattery());
 			visitorBattery.addAll(new ElementInternerBattery());
+		} // End if
 
-			visitorBattery.addAll(new ListFinalizerBattery());
+		if(this.optimize || this.intern){
+			visitorBattery.addAll(new AttributeFinalizerBattery());
+			visitorBattery.addAll(new ElementFinalizerBattery());
 		}
 
 		visitorBattery.applyTo(pmml);
@@ -280,9 +319,16 @@ public class EvaluationExample extends Example {
 			System.out.println("\t" + "Other objects: " + numberFormat.format(objectCount - pmmlObjectCount));
 		}
 
-		EvaluatorBuilder evaluatorBuilder = new ModelEvaluatorBuilder(pmml, this.modelName)
+		ModelEvaluatorBuilder evaluatorBuilder = new ModelEvaluatorBuilder(pmml, this.modelName)
 			.setModelEvaluatorFactory((ModelEvaluatorFactory)newInstance(this.modelEvaluatorFactoryClazz))
-			.setValueFactoryFactory((ValueFactoryFactory)newInstance(this.valueFactoryFactoryClazz));
+			.setValueFactoryFactory((ValueFactoryFactory)newInstance(this.valueFactoryFactoryClazz))
+			.setOutputFilter(this.filterOutput ? OutputFilters.KEEP_FINAL_RESULTS : OutputFilters.KEEP_ALL);
+
+		if(this.safe){
+			evaluatorBuilder = evaluatorBuilder
+				.setDerivedFieldGuard(new FieldNameSet(8))
+				.setFunctionGuard(new FunctionNameStack(4));
+		}
 
 		Evaluator evaluator = evaluatorBuilder.build();
 
@@ -301,12 +347,12 @@ public class EvaluationExample extends Example {
 		if(inputRecords.size() > 0){
 			Map<FieldName, ?> inputRecord = inputRecords.get(0);
 
-			Sets.SetView<FieldName> missingInputFields = Sets.difference(new LinkedHashSet<>(EvaluatorUtil.getNames(inputFields)), inputRecord.keySet());
+			Sets.SetView<FieldName> missingInputFields = Sets.difference(new LinkedHashSet<>(Lists.transform(inputFields, InputField::getName)), inputRecord.keySet());
 			if((missingInputFields.size() > 0) && !this.sparse){
 				throw new IllegalArgumentException("Missing input field(s): " + missingInputFields);
 			}
 
-			Sets.SetView<FieldName> missingGroupFields = Sets.difference(new LinkedHashSet<>(EvaluatorUtil.getNames(groupFields)), inputRecord.keySet());
+			Sets.SetView<FieldName> missingGroupFields = Sets.difference(new LinkedHashSet<>(Lists.transform(groupFields, InputField::getName)), inputRecord.keySet());
 			if(missingGroupFields.size() > 0){
 				throw new IllegalArgumentException("Missing group field(s): " + missingGroupFields);
 			}
@@ -319,6 +365,8 @@ public class EvaluationExample extends Example {
 		}
 
 		List<Map<FieldName, ?>> outputRecords = new ArrayList<>(inputRecords.size());
+
+		FieldName errorColumn = null;
 
 		Timer timer = new Timer(new SlidingWindowReservoir(this.loop));
 
@@ -339,15 +387,30 @@ public class EvaluationExample extends Example {
 				for(Map<FieldName, ?> inputRecord : inputRecords){
 					arguments.clear();
 
-					for(InputField inputField : inputFields){
-						FieldName name = inputField.getName();
+					Map<FieldName, ?> results;
 
-						FieldValue value = inputField.prepare(inputRecord.get(name));
+					try {
+						for(InputField inputField : inputFields){
+							FieldName name = inputField.getName();
 
-						arguments.put(name, value);
+							FieldValue value = inputField.prepare(inputRecord.get(name));
+
+							arguments.put(name, value);
+						}
+
+						results = evaluator.evaluate(arguments);
+					} catch(Exception e){
+
+						if(!this.catchErrors){
+							throw e;
+						}
+
+						if(errorColumn == null){
+							errorColumn = FieldName.create(this.errorColumn);
+						}
+
+						results = Collections.singletonMap(errorColumn, e.toString());
 					}
-
-					Map<FieldName, ?> results = evaluator.evaluate(arguments);
 
 					outputRecords.add(results);
 				}
@@ -368,7 +431,13 @@ public class EvaluationExample extends Example {
 		CsvUtil.Table outputTable = new CsvUtil.Table();
 		outputTable.setSeparator(inputTable.getSeparator());
 
-		outputTable.addAll(BatchUtil.formatRecords(outputRecords, EvaluatorUtil.getNames(resultFields), createCellFormatter(this.missingValues.size() > 0 ? this.missingValues.get(0) : null)));
+		List<FieldName> columns = new ArrayList<>(Lists.transform(resultFields, ResultField::getName));
+
+		if(errorColumn != null){
+			columns.add(errorColumn);
+		}
+
+		outputTable.addAll(BatchUtil.formatRecords(outputRecords, columns, createCellFormatter(outputTable.getSeparator(), this.missingValues.size() > 0 ? this.missingValues.get(0) : null)));
 
 		if((inputTable.size() == outputTable.size()) && this.copyColumns){
 

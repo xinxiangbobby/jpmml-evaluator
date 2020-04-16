@@ -22,29 +22,25 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import org.dmg.pmml.FieldName;
-import org.dmg.pmml.MathContext;
-import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.scorecard.Attribute;
 import org.dmg.pmml.scorecard.Characteristic;
 import org.dmg.pmml.scorecard.Characteristics;
 import org.dmg.pmml.scorecard.ComplexPartialScore;
+import org.dmg.pmml.scorecard.PMMLAttributes;
+import org.dmg.pmml.scorecard.PMMLElements;
 import org.dmg.pmml.scorecard.Scorecard;
 import org.jpmml.evaluator.EvaluationContext;
 import org.jpmml.evaluator.ExpressionUtil;
 import org.jpmml.evaluator.FieldValue;
-import org.jpmml.evaluator.FieldValues;
-import org.jpmml.evaluator.InvalidAttributeException;
+import org.jpmml.evaluator.FieldValueUtil;
+import org.jpmml.evaluator.Functions;
 import org.jpmml.evaluator.MissingAttributeException;
 import org.jpmml.evaluator.MissingElementException;
-import org.jpmml.evaluator.ModelEvaluationContext;
 import org.jpmml.evaluator.ModelEvaluator;
-import org.jpmml.evaluator.OutputUtil;
-import org.jpmml.evaluator.PMMLAttributes;
-import org.jpmml.evaluator.PMMLElements;
+import org.jpmml.evaluator.Numbers;
 import org.jpmml.evaluator.PMMLUtil;
 import org.jpmml.evaluator.PredicateUtil;
 import org.jpmml.evaluator.TargetField;
@@ -81,43 +77,7 @@ public class ScorecardEvaluator extends ModelEvaluator<Scorecard> {
 	}
 
 	@Override
-	public Map<FieldName, ?> evaluate(ModelEvaluationContext context){
-		Scorecard scorecard = ensureScorableModel();
-
-		ValueFactory<?> valueFactory;
-
-		MathContext mathContext = scorecard.getMathContext();
-		switch(mathContext){
-			case FLOAT:
-			case DOUBLE:
-				valueFactory = ensureValueFactory();
-				break;
-			default:
-				throw new UnsupportedAttributeException(scorecard, mathContext);
-		}
-
-		Map<FieldName, ?> predictions;
-
-		MiningFunction miningFunction = scorecard.getMiningFunction();
-		switch(miningFunction){
-			case REGRESSION:
-				predictions = evaluateRegression(valueFactory, context);
-				break;
-			case ASSOCIATION_RULES:
-			case SEQUENCES:
-			case CLASSIFICATION:
-			case CLUSTERING:
-			case TIME_SERIES:
-			case MIXED:
-				throw new InvalidAttributeException(scorecard, miningFunction);
-			default:
-				throw new UnsupportedAttributeException(scorecard, miningFunction);
-		}
-
-		return OutputUtil.evaluate(predictions, context);
-	}
-
-	private <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
+	protected <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
 		Scorecard scorecard = getModel();
 
 		boolean useReasonCodes = scorecard.isUseReasonCodes();
@@ -129,18 +89,12 @@ public class ScorecardEvaluator extends ModelEvaluator<Scorecard> {
 		VoteAggregator<String, V> reasonCodePoints = null;
 
 		if(useReasonCodes){
-			reasonCodePoints = new VoteAggregator<String, V>(){
-
-				@Override
-				public ValueFactory<V> getValueFactory(){
-					return valueFactory;
-				}
-			};
+			reasonCodePoints = new VoteAggregator<>(valueFactory);
 		}
 
 		Characteristics characteristics = scorecard.getCharacteristics();
 		for(Characteristic characteristic : characteristics){
-			Double baselineScore = null;
+			Number baselineScore = null;
 
 			if(useReasonCodes){
 				baselineScore = characteristic.getBaselineScore();
@@ -153,7 +107,7 @@ public class ScorecardEvaluator extends ModelEvaluator<Scorecard> {
 				}
 			}
 
-			Double partialScore = null;
+			Number partialScore = null;
 
 			List<Attribute> attributes = characteristic.getAttributes();
 			for(Attribute attribute : attributes){
@@ -165,11 +119,11 @@ public class ScorecardEvaluator extends ModelEvaluator<Scorecard> {
 				ComplexPartialScore complexPartialScore = attribute.getComplexPartialScore();
 				if(complexPartialScore != null){
 					FieldValue computedValue = ExpressionUtil.evaluateExpressionContainer(complexPartialScore, context);
-					if(Objects.equals(FieldValues.MISSING_VALUE, computedValue)){
+					if(FieldValueUtil.isMissing(computedValue)){
 						return TargetUtil.evaluateRegressionDefault(valueFactory, targetField);
 					}
 
-					partialScore = computedValue.asDouble();
+					partialScore = computedValue.asNumber();
 				} else
 
 				{
@@ -191,15 +145,15 @@ public class ScorecardEvaluator extends ModelEvaluator<Scorecard> {
 						throw new MissingAttributeException(attribute, PMMLAttributes.ATTRIBUTE_REASONCODE);
 					}
 
-					double difference;
+					Number difference;
 
 					Scorecard.ReasonCodeAlgorithm reasonCodeAlgorithm = scorecard.getReasonCodeAlgorithm();
 					switch(reasonCodeAlgorithm){
 						case POINTS_ABOVE:
-							difference = (partialScore - baselineScore);
+							difference = Functions.SUBTRACT.evaluate(partialScore, baselineScore);
 							break;
 						case POINTS_BELOW:
-							difference = (baselineScore - partialScore);
+							difference = Functions.SUBTRACT.evaluate(baselineScore, partialScore);
 							break;
 						default:
 							throw new UnsupportedAttributeException(scorecard, reasonCodeAlgorithm);
@@ -236,7 +190,7 @@ public class ScorecardEvaluator extends ModelEvaluator<Scorecard> {
 			Map.Entry<String, Value<V>> entry = it.next();
 
 			Value<V> value = entry.getValue();
-			if(value.compareTo(0d) < 0){
+			if(value.compareTo(Numbers.DOUBLE_ZERO) < 0){
 				it.remove();
 			}
 		}

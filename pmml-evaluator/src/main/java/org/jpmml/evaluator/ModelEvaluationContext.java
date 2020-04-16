@@ -41,12 +41,7 @@ public class ModelEvaluationContext extends EvaluationContext {
 
 
 	public ModelEvaluationContext(ModelEvaluator<?> modelEvaluator){
-		this(modelEvaluator, null);
-	}
-
-	public ModelEvaluationContext(ModelEvaluator<?> modelEvaluator, MiningModelEvaluationContext parent){
 		setModelEvaluator(modelEvaluator);
-		setParent(parent);
 	}
 
 	@Override
@@ -100,7 +95,7 @@ public class ModelEvaluationContext extends EvaluationContext {
 		if(miningField == null){
 			DerivedField localDerivedField = modelEvaluator.getLocalDerivedField(name);
 			if(localDerivedField != null){
-				FieldValue value = ExpressionUtil.evaluateTypedExpressionContainer(localDerivedField, this);
+				FieldValue value = ExpressionUtil.evaluate(localDerivedField, this);
 
 				return declare(name, value);
 			}
@@ -115,7 +110,7 @@ public class ModelEvaluationContext extends EvaluationContext {
 				} else
 
 				{
-					value = ExpressionUtil.evaluateTypedExpressionContainer(derivedField, this);
+					value = ExpressionUtil.evaluate(derivedField, this);
 				}
 
 				return declare(name, value);
@@ -131,7 +126,7 @@ public class ModelEvaluationContext extends EvaluationContext {
 				if(parent != null){
 					FieldValue value = parent.evaluate(name);
 
-					return declare(name, performValueTreatment(dataField, miningField, value));
+					return declare(name, inheritOrPrepareInputValue(dataField, miningField, value));
 				}
 
 				Object value = arguments.get(name);
@@ -144,7 +139,7 @@ public class ModelEvaluationContext extends EvaluationContext {
 				if(field != null){
 					FieldValue value = parent.evaluate(name);
 
-					return declare(name, performValueTreatment(field, miningField, value));
+					return declare(name, inheritOrPrepareInputValue(field, miningField, value));
 				}
 			}
 		}
@@ -173,7 +168,7 @@ public class ModelEvaluationContext extends EvaluationContext {
 		return this.parent;
 	}
 
-	private void setParent(MiningModelEvaluationContext parent){
+	public void setParent(MiningModelEvaluationContext parent){
 		this.parent = parent;
 	}
 
@@ -206,18 +201,12 @@ public class ModelEvaluationContext extends EvaluationContext {
 	}
 
 	static
-	private FieldValue performValueTreatment(Field<?> field, MiningField miningField, FieldValue value){
+	private FieldValue inheritOrPrepareInputValue(Field<?> field, MiningField miningField, FieldValue value){
 
 		if(InputFieldUtil.isDefault(field, miningField)){
 			return value;
-		} // End if
-
-		if(Objects.equals(FieldValues.MISSING_VALUE, value)){
-			return InputFieldUtil.performMissingValueTreatment(field, miningField);
-		} else
-
-		{
-			return InputFieldUtil.performValidValueTreatment(field, miningField, value);
 		}
+
+		return InputFieldUtil.prepareInputValue(field, miningField, FieldValueUtil.getValue(value));
 	}
 }

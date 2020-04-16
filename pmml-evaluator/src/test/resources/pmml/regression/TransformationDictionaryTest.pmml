@@ -6,6 +6,7 @@
 		<DataField name="StartTime" optype="continuous" dataType="integer"/>
 		<DataField name="State" optype="categorical" dataType="string"/>
 		<DataField name="Value" optype="continuous" dataType="double"/>
+		<DataField name="Exponent" optype="continuous" dataType="integer"/>
 	</DataDictionary>
 	<RegressionModel functionName="regression">
 		<MiningSchema>
@@ -13,6 +14,7 @@
 			<MiningField name="StartTime"/>
 			<MiningField name="State"/>
 			<MiningField name="Value"/>
+			<MiningField name="Exponent"/>
 		</MiningSchema>
 		<RegressionTable/>
 	</RegressionModel>
@@ -48,6 +50,27 @@
 				</InlineTable>
 			</MapValues>
 		</DefineFunction>
+		<DefineFunction name="POW" dataType="double">
+			<ParameterField name="x" dataType="double"/>
+			<ParameterField name="n" dataType="integer"/>
+			<Apply function="if">
+				<Apply function="greaterThan">
+					<FieldRef field="n"/>
+					<Constant dataType="integer">1</Constant>
+				</Apply>
+				<Apply function="*">
+					<Apply function="POW">
+						<FieldRef field="x"/>
+						<Apply function="-">
+							<FieldRef field="n"/>
+							<Constant dataType="integer">1</Constant>
+						</Apply>
+					</Apply>
+					<FieldRef field="x"/>
+				</Apply>
+				<FieldRef field="x"/>
+			</Apply>
+		</DefineFunction>
 		<DerivedField name="Shift" optype="categorical" dataType="string">
 			<Apply function="AMPM">
 				<FieldRef field="StartTime"/>
@@ -58,7 +81,13 @@
 				<FieldRef field="State"/>
 			</Apply>
 		</DerivedField>
-		<DerivedField name="SimpleTable" dataType="string">
+		<DerivedField name="Power" optype="continuous" dataType="double">
+			<Apply function="POW">
+				<FieldRef field="Value"/>
+				<FieldRef field="Exponent"/>
+			</Apply>
+		</DerivedField>
+		<DerivedField name="SimpleTable" optype="categorical" dataType="string">
 			<MapValues outputColumn="data:output">
 				<FieldColumnPair field="Value" column="data:input"/>
 				<InlineTable>
@@ -75,7 +104,7 @@
 				</InlineTable>
 			</MapValues>
 		</DerivedField>
-		<DerivedField name="ComplexTable" dataType="string">
+		<DerivedField name="ComplexTable" optype="categorical" dataType="string">
 			<MapValues outputColumn="output">
 				<FieldColumnPair field="Value" column="input"/>
 				<FieldColumnPair field="Modifier" column="flag"/>
@@ -102,6 +131,34 @@
 					</row>
 				</InlineTable>
 			</MapValues>
+		</DerivedField>
+		<DerivedField name="SelfRef" optype="continuous" dataType="double">
+			<Apply function="if">
+				<FieldRef field="Modifier"/>
+				<Apply function="+">
+					<FieldRef field="Value"/>
+					<FieldRef field="SelfRef"/>
+				</Apply>
+				<FieldRef field="Value"/>
+			</Apply>
+		</DerivedField>
+		<DerivedField name="Ref" optype="continuous" dataType="double">
+			<Apply function="+">
+				<FieldRef field="Value"/>
+				<FieldRef field="BackRef"/>
+			</Apply>
+		</DerivedField>
+		<DerivedField name="BackRef" optype="continuous" dataType="double">
+			<FieldRef field="Ref"/>
+		</DerivedField>
+		<DerivedField name="StageOne" optype="continuous" dataType="double">
+			<FieldRef field="Value"/>
+		</DerivedField>
+		<DerivedField name="StageTwo" optype="continuous" dataType="double">
+			<FieldRef field="StageOne"/>
+		</DerivedField>
+		<DerivedField name="StageThree" optype="continuous" dataType="double">
+			<FieldRef field="StageTwo"/>
 		</DerivedField>
 	</TransformationDictionary>
 </PMML>

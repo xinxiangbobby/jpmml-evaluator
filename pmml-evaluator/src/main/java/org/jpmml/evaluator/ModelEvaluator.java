@@ -19,10 +19,12 @@
 package org.jpmml.evaluator;
 
 import java.io.Serializable;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,12 +32,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.function.Predicate;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 import com.google.common.collect.Table;
@@ -57,11 +61,17 @@ import org.dmg.pmml.ModelVerification;
 import org.dmg.pmml.OpType;
 import org.dmg.pmml.Output;
 import org.dmg.pmml.PMML;
+import org.dmg.pmml.PMMLAttributes;
+import org.dmg.pmml.PMMLElements;
+import org.dmg.pmml.PMMLObject;
+import org.dmg.pmml.ResultFeature;
 import org.dmg.pmml.Target;
 import org.dmg.pmml.Targets;
 import org.dmg.pmml.TransformationDictionary;
 import org.dmg.pmml.VerificationField;
 import org.dmg.pmml.VerificationFields;
+import org.jpmml.model.XPathUtil;
+import org.jpmml.model.visitors.FieldResolver;
 
 /**
  * @see ModelEvaluatorBuilder
@@ -70,15 +80,21 @@ import org.dmg.pmml.VerificationFields;
 	value = {"unused"}
 )
 abstract
-public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, HasPMML, Serializable {
+public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, Serializable {
 
 	private PMML pmml = null;
 
 	private M model = null;
 
-	private Configuration configuration = Configuration.getInstance();
+	private Configuration configuration = null;
+
+	private InputMapper inputMapper = null;
+
+	private ResultMapper resultMapper = null;
 
 	private ValueFactory<?> valueFactory = null;
+
+	private DataField defaultDataField = null;
 
 	private Map<FieldName, DataField> dataFields = Collections.emptyMap();
 
@@ -93,6 +109,8 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	private Map<FieldName, Target> targets = Collections.emptyMap();
 
 	private Map<FieldName, org.dmg.pmml.OutputField> outputFields = Collections.emptyMap();
+
+	private Set<ResultFeature> resultFeatures = Collections.emptySet();
 
 	transient
 	private Boolean parentCompatible = null;
@@ -113,7 +131,7 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	private List<OutputField> outputResultFields = null;
 
 	transient
-	private Set<org.dmg.pmml.ResultFeature> resultFeatures = null;
+	private Map<FieldName, Field<?>> resolvedFields = null;
 
 
 	protected ModelEvaluator(PMML pmml, M model){
@@ -149,6 +167,15 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		} // End if
 
 		if(miningSchema.hasMiningFields()){
+			List<MiningField> miningFields = miningSchema.getMiningFields();
+
+			for(MiningField miningField : miningFields){
+				FieldName name = miningField.getName();
+				if(name == null){
+					throw new MissingAttributeException(miningField, PMMLAttributes.MININGFIELD_NAME);
+				}
+			}
+
 			this.miningFields = CacheUtil.getValue(miningSchema, ModelEvaluator.miningFieldCache);
 		}
 
@@ -165,11 +192,9 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		Output output = model.getOutput();
 		if(output != null && output.hasOutputFields()){
 			this.outputFields = CacheUtil.getValue(output, ModelEvaluator.outputFieldCache);
+			this.resultFeatures = CacheUtil.getValue(output, ModelEvaluator.resultFeaturesCache);
 		}
 	}
-
-	abstract
-	public Map<FieldName, ?> evaluate(ModelEvaluationContext context);
 
 	/**
 	 * <p>
@@ -185,6 +210,9 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		setConfiguration(Objects.requireNonNull(configuration));
 
 		setValueFactory(null);
+
+		resetInputFields();
+		resetResultFields();
 	}
 
 	@Override
@@ -203,7 +231,7 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	public DataField getDataField(FieldName name){
 
 		if(Objects.equals(Evaluator.DEFAULT_TARGET_NAME, name)){
-			return getDataField();
+			return getDefaultDataField();
 		}
 
 		return this.dataFields.get(name);
@@ -212,9 +240,13 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	/**
 	 * @return A synthetic {@link DataField} element describing the default target field.
 	 */
-	protected DataField getDataField(){
-		MiningFunction miningFunction = getMiningFunction();
+	public DataField getDefaultDataField(){
 
+		if(this.defaultDataField != null){
+			return this.defaultDataField;
+		}
+
+		MiningFunction miningFunction = getMiningFunction();
 		switch(miningFunction){
 			case REGRESSION:
 				MathContext mathContext = getMathContext();
@@ -231,6 +263,10 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 			default:
 				return null;
 		}
+	}
+
+	public void setDefaultDataField(DataField defaultDataField){
+		this.defaultDataField = defaultDataField;
 	}
 
 	public DerivedField getDerivedField(FieldName name){
@@ -260,6 +296,32 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 
 	public org.dmg.pmml.OutputField getOutputField(FieldName name){
 		return this.outputFields.get(name);
+	}
+
+	/**
+	 * <p>
+	 * Indicates if this model evaluator provides the specified result feature.
+	 * </p>
+	 *
+	 * <p>
+	 * A result feature is first and foremost manifested through output fields.
+	 * However, selected result features may make a secondary manifestation through a target field.
+	 * </p>
+	 *
+	 * @see org.dmg.pmml.OutputField#getResultFeature()
+	 */
+	public boolean hasResultFeature(ResultFeature resultFeature){
+		Set<ResultFeature> resultFeatures = getResultFeatures();
+
+		return resultFeatures.contains(resultFeature);
+	}
+
+	public void addResultFeatures(Set<ResultFeature> resultFeatures){
+		this.resultFeatures = Sets.immutableEnumSet(Iterables.concat(this.resultFeatures, resultFeatures));
+	}
+
+	protected Set<ResultFeature> getResultFeatures(){
+		return this.resultFeatures;
 	}
 
 	/**
@@ -303,21 +365,21 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	public List<InputField> getInputFields(){
 
 		if(this.inputFields == null){
-			this.inputFields = createInputFields();
+			InputMapper inputMapper = getInputMapper();
+
+			this.inputFields = updateNames(createInputFields(), inputMapper);
 		}
 
 		return this.inputFields;
-	}
-
-	InputField findInputField(FieldName name){
-		return findModelField(getInputFields(), name);
 	}
 
 	@Override
 	public List<InputField> getActiveFields(){
 
 		if(this.activeInputFields == null){
-			this.activeInputFields = createInputFields(MiningField.UsageType.ACTIVE);
+			InputMapper inputMapper = getInputMapper();
+
+			this.activeInputFields = updateNames(createInputFields(MiningField.UsageType.ACTIVE), inputMapper);
 		}
 
 		return this.activeInputFields;
@@ -327,7 +389,9 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	public List<TargetField> getTargetFields(){
 
 		if(this.targetResultFields == null){
-			this.targetResultFields = createTargetFields();
+			ResultMapper resultMapper = getResultMapper();
+
+			this.targetResultFields = updateNames(createTargetFields(), resultMapper);
 		}
 
 		return this.targetResultFields;
@@ -345,55 +409,35 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		return targetField;
 	}
 
-	TargetField findTargetField(FieldName name){
-		return findModelField(getTargetFields(), name);
-	}
-
-	public FieldName getTargetFieldName(){
+	public FieldName getTargetName(){
 		TargetField targetField = getTargetField();
 
-		return targetField.getName();
+		return targetField.getFieldName();
+	}
+
+	TargetField findTargetField(FieldName name){
+		List<TargetField> targetFields = getTargetFields();
+
+		for(TargetField targetField : targetFields){
+
+			if(Objects.equals(targetField.getFieldName(), name)){
+				return targetField;
+			}
+		}
+
+		return null;
 	}
 
 	@Override
 	public List<OutputField> getOutputFields(){
 
 		if(this.outputResultFields == null){
-			this.outputResultFields = createOutputFields();
+			ResultMapper resultMapper = getResultMapper();
+
+			this.outputResultFields = updateNames(createOutputFields(), resultMapper);
 		}
 
 		return this.outputResultFields;
-	}
-
-	OutputField findOutputField(FieldName name){
-		return findModelField(getOutputFields(), name);
-	}
-
-	/**
-	 * <p>
-	 * Indicates if this model evaluator provides the specified result feature.
-	 * </p>
-	 *
-	 * <p>
-	 * A result feature is first and foremost manifested through output fields.
-	 * However, selected result features may make a secondary manifestation through a target field.
-	 * </p>
-	 *
-	 * @see org.dmg.pmml.OutputField#getResultFeature()
-	 */
-	public boolean hasResultFeature(org.dmg.pmml.ResultFeature resultFeature){
-		Set<org.dmg.pmml.ResultFeature> resultFeatures = getResultFeatures();
-
-		return resultFeatures.contains(resultFeature);
-	}
-
-	public Set<org.dmg.pmml.ResultFeature> getResultFeatures(){
-
-		if(this.resultFeatures == null){
-			this.resultFeatures = collectResultFeatures();
-		}
-
-		return this.resultFeatures;
 	}
 
 	protected EvaluationException createMiningSchemaException(String message){
@@ -405,12 +449,12 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 	}
 
 	@Override
-	public void verify(){
+	public ModelEvaluator<M> verify(){
 		M model = getModel();
 
 		ModelVerification modelVerification = model.getModelVerification();
 		if(modelVerification == null){
-			return;
+			return this;
 		}
 
 		VerificationBatch batch = CacheUtil.getValue(modelVerification, ModelEvaluator.batchCache);
@@ -428,28 +472,33 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		List<TargetField> targetFields = getTargetFields();
 		List<OutputField> outputFields = getOutputFields();
 
-		SetView<FieldName> intersection = Sets.intersection(batch.keySet(), new LinkedHashSet<>(EvaluatorUtil.getNames(outputFields)));
+		SetView<FieldName> intersection = Sets.intersection(batch.keySet(), new LinkedHashSet<>(Lists.transform(outputFields, OutputField::getFieldName)));
+
+		boolean disjoint = intersection.isEmpty();
 
 		for(Map<FieldName, ?> record : records){
 			Map<FieldName, Object> arguments = new LinkedHashMap<>();
 
 			for(InputField inputField : inputFields){
-				FieldName name = inputField.getName();
+				FieldName name = inputField.getFieldName();
 
 				FieldValue value = inputField.prepare(record.get(name));
 
 				arguments.put(name, value);
 			}
 
-			Map<FieldName, ?> results = evaluate(arguments);
+			ModelEvaluationContext context = createEvaluationContext();
+			context.setArguments(arguments);
+
+			Map<FieldName, ?> results = evaluateInternal(context);
 
 			// "If there exist VerificationField elements that refer to OutputField elements,
 			// then any VerificationField element that refers to a MiningField element whose "usageType=target" should be ignored,
 			// because they are considered to represent a dependent variable from the training data set, not an expected output"
-			if(intersection.size() > 0){
+			if(!disjoint){
 
 				for(OutputField outputField : outputFields){
-					FieldName name = outputField.getName();
+					FieldName name = outputField.getFieldName();
 
 					VerificationField verificationField = batch.get(name);
 					if(verificationField == null){
@@ -464,78 +513,255 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 			// then any VerificationField element that refers to a MiningField element whose "usageType=target" should be considered to represent an expected output"
 			{
 				for(TargetField targetField : targetFields){
-					FieldName name = targetField.getName();
+					FieldName name = targetField.getFieldName();
 
 					VerificationField verificationField = batch.get(name);
 					if(verificationField == null){
 						continue;
 					}
 
-					verify(record.get(name), EvaluatorUtil.decode(results.get(name)), verificationField.getPrecision(), verificationField.getZeroThreshold());
+					Number precision = verificationField.getPrecision();
+					Number zeroThreshold = verificationField.getZeroThreshold();
+
+					verify(record.get(name), EvaluatorUtil.decode(results.get(name)), precision, zeroThreshold);
 				}
 			}
 		}
+
+		return this;
 	}
 
-	private void verify(Object expected, Object actual, double precision, double zeroThreshold){
+	private void verify(Object expected, Object actual, Number precision, Number zeroThreshold){
 
 		if(expected == null){
 			return;
 		} // End if
 
-		if(!(actual instanceof Collection)){
+		if(actual instanceof Collection){
+			// Ignored
+		} else
+
+		{
 			DataType dataType = TypeUtil.getDataType(actual);
 
 			expected = TypeUtil.parseOrCast(dataType, expected);
 		}
 
-		boolean acceptable = VerificationUtil.acceptable(expected, actual, precision, zeroThreshold);
+		boolean acceptable = VerificationUtil.acceptable(expected, actual, precision.doubleValue(), zeroThreshold.doubleValue());
 		if(!acceptable){
 			throw new EvaluationException("Values " + PMMLException.formatValue(expected) + " and " + PMMLException.formatValue(actual) + " do not match");
 		}
 	}
 
-	@Override
-	public Map<FieldName, ?> evaluate(Map<FieldName, ?> arguments){
-		ModelEvaluationContext context = new ModelEvaluationContext(this);
-		context.setArguments(arguments);
-
-		return evaluate(context);
+	public ModelEvaluationContext createEvaluationContext(){
+		return new ModelEvaluationContext(this);
 	}
 
-	protected <V extends Number> Classification<V> createClassification(ValueMap<String, V> values){
+	@Override
+	public Map<FieldName, ?> evaluate(Map<FieldName, ?> arguments){
+		Configuration configuration = ensureConfiguration();
 
-		if(hasResultFeature(org.dmg.pmml.ResultFeature.PROBABILITY) || hasResultFeature(org.dmg.pmml.ResultFeature.RESIDUAL)){
-			return new ProbabilityDistribution<V>(values);
+		SymbolTable<FieldName> prevDerivedFieldGuard = null;
+		SymbolTable<FieldName> derivedFieldGuard = configuration.getDerivedFieldGuard();
+
+		SymbolTable<String> prevFunctionGuard = null;
+		SymbolTable<String> functionGuard = configuration.getFunctionGuard();
+
+		arguments = processArguments(arguments);
+
+		ModelEvaluationContext context = createEvaluationContext();
+		context.setArguments(arguments);
+
+		Map<FieldName, ?> results;
+
+		try {
+			if(derivedFieldGuard != null){
+				prevDerivedFieldGuard = EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.get();
+
+				EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(derivedFieldGuard.fork());
+			} // End if
+
+			if(functionGuard != null){
+				prevFunctionGuard = EvaluationContext.FUNCTION_GUARD_PROVIDER.get();
+
+				EvaluationContext.FUNCTION_GUARD_PROVIDER.set(functionGuard.fork());
+			}
+
+			results = evaluateInternal(context);
+		} finally {
+
+			if(derivedFieldGuard != null){
+				EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(prevDerivedFieldGuard);
+			} // End if
+
+			if(functionGuard != null){
+				EvaluationContext.FUNCTION_GUARD_PROVIDER.set(prevFunctionGuard);
+			}
+		}
+
+		results = processResults(results);
+
+		return results;
+	}
+
+	protected Map<FieldName, ?> processArguments(Map<FieldName, ?> arguments){
+		InputMapper inputMapper = getInputMapper();
+
+		if(inputMapper != null){
+			Map<FieldName, Object> remappedArguments = new AbstractMap<FieldName, Object>(){
+
+				@Override
+				public Object get(Object key){
+					return arguments.get(inputMapper.apply((FieldName)key));
+				}
+
+				@Override
+				public Set<Map.Entry<FieldName, Object>> entrySet(){
+					throw new UnsupportedOperationException();
+				}
+			};
+
+			return remappedArguments;
+		}
+
+		return arguments;
+	}
+
+	protected Map<FieldName, ?> processResults(Map<FieldName, ?> results){
+		ResultMapper resultMapper = getResultMapper();
+
+		if(results instanceof OutputMap){
+			OutputMap outputMap = (OutputMap)results;
+
+			outputMap.clearPrivate();
+		} // End if
+
+		if(resultMapper != null){
+
+			if(results.size() == 0){
+				return results;
+			} else
+
+			if(results.size() == 1){
+				Map.Entry<FieldName, ?> entry = Iterables.getOnlyElement(results.entrySet());
+
+				return Collections.singletonMap(resultMapper.apply(entry.getKey()), entry.getValue());
+			}
+
+			Map<FieldName, Object> remappedResults = new LinkedHashMap<>(2 * results.size());
+
+			Collection<? extends Map.Entry<FieldName, ?>> entries = results.entrySet();
+			for(Map.Entry<FieldName, ?> entry : entries){
+				remappedResults.put(resultMapper.apply(entry.getKey()), entry.getValue());
+			}
+
+			return remappedResults;
+		}
+
+		return results;
+	}
+
+	public Map<FieldName, ?> evaluateInternal(ModelEvaluationContext context){
+		M model = getModel();
+
+		if(!model.isScorable()){
+			throw new EvaluationException("Model is not scorable", model);
+		}
+
+		ValueFactory<?> valueFactory;
+
+		MathContext mathContext = model.getMathContext();
+		switch(mathContext){
+			case FLOAT:
+			case DOUBLE:
+				valueFactory = ensureValueFactory();
+				break;
+			default:
+				throw new UnsupportedAttributeException(model, mathContext);
+		}
+
+		Map<FieldName, ?> predictions;
+
+		MiningFunction miningFunction = model.getMiningFunction();
+		switch(miningFunction){
+			case REGRESSION:
+				predictions = evaluateRegression(valueFactory, context);
+				break;
+			case CLASSIFICATION:
+				predictions = evaluateClassification(valueFactory, context);
+				break;
+			case CLUSTERING:
+				predictions = evaluateClustering(valueFactory, context);
+				break;
+			case ASSOCIATION_RULES:
+				predictions = evaluateAssociationRules(valueFactory, context);
+				break;
+			case SEQUENCES:
+				predictions = evaluateSequences(valueFactory, context);
+				break;
+			case TIME_SERIES:
+				predictions = evaluateTimeSeries(valueFactory, context);
+				break;
+			case MIXED:
+				predictions = evaluateMixed(valueFactory, context);
+				break;
+			default:
+				throw new UnsupportedAttributeException(model, miningFunction);
+		}
+
+		return OutputUtil.evaluate(predictions, context);
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateClassification(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateClustering(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateAssociationRules(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateSequences(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateTimeSeries(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	protected <V extends Number> Map<FieldName, ?> evaluateMixed(ValueFactory<V> valueFactory, EvaluationContext context){
+		return evaluateDefault();
+	}
+
+	private <V extends Number> Map<FieldName, ?> evaluateDefault(){
+		Model model = getModel();
+
+		MiningFunction miningFunction = model.getMiningFunction();
+
+		throw new InvalidAttributeException(model, miningFunction);
+	}
+
+	protected <V extends Number> Classification<Object, V> createClassification(ValueMap<Object, V> values){
+		Set<ResultFeature> resultFeatures = getResultFeatures();
+
+		if(resultFeatures.contains(ResultFeature.PROBABILITY) || resultFeatures.contains(ResultFeature.RESIDUAL)){
+			return new ProbabilityDistribution<>(values);
 		} else
 
-		if(hasResultFeature(org.dmg.pmml.ResultFeature.CONFIDENCE)){
-			return new ConfidenceDistribution<V>(values);
+		if(resultFeatures.contains(ResultFeature.CONFIDENCE)){
+			return new ConfidenceDistribution<>(values);
 		} else
 
 		{
-			return new Classification<V>(Classification.Type.VOTE, values);
+			return new Classification<>(Classification.Type.VOTE, values);
 		}
-	}
-
-	protected Field<?> resolveField(FieldName name){
-		Field<?> result = getDataField(name);
-
-		if(result == null){
-			result = resolveDerivedField(name);
-		}
-
-		return result;
-	}
-
-	protected DerivedField resolveDerivedField(FieldName name){
-		DerivedField result = getDerivedField(name);
-
-		if(result == null){
-			result = getLocalDerivedField(name);
-		}
-
-		return result;
 	}
 
 	protected boolean assessParentCompatibility(){
@@ -582,7 +808,7 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 			for(OutputField outputField : outputFields){
 				org.dmg.pmml.OutputField pmmlOutputField = outputField.getField();
 
-				if(!(org.dmg.pmml.ResultFeature.RESIDUAL).equals(pmmlOutputField.getResultFeature())){
+				if(!(ResultFeature.RESIDUAL).equals(pmmlOutputField.getResultFeature())){
 					continue;
 				}
 
@@ -593,7 +819,7 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 
 				FieldName targetName = pmmlOutputField.getTargetField();
 				if(targetName == null){
-					targetName = getTargetFieldName();
+					targetName = getTargetName();
 				}
 
 				DataField dataField = getDataField(targetName);
@@ -669,8 +895,8 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 
 				MiningField.UsageType usageType = miningField.getUsageType();
 				switch(usageType){
-					case TARGET:
 					case PREDICTED:
+					case TARGET:
 						break;
 					default:
 						continue;
@@ -691,7 +917,7 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 
 		synthesis:
 		if(targetFields.isEmpty()){
-			DataField dataField = getDataField();
+			DataField dataField = getDefaultDataField();
 
 			if(dataField == null){
 				break synthesis;
@@ -699,7 +925,7 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 
 			Target target = getTarget(dataField.getName());
 
-			TargetField targetField = new TargetField(dataField, null, target);
+			TargetField targetField = new DefaultTargetField(dataField, target);
 
 			targetFields.add(targetField);
 		}
@@ -712,47 +938,77 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 
 		Output output = model.getOutput();
 
-		List<OutputField> resultFields = new ArrayList<>();
+		List<OutputField> outputFields = new ArrayList<>();
 
 		if(output != null && output.hasOutputFields()){
-			List<org.dmg.pmml.OutputField> outputFields = output.getOutputFields();
+			Predicate<org.dmg.pmml.OutputField> outputFilter = ensureOutputFilter();
 
-			for(org.dmg.pmml.OutputField outputField : outputFields){
-				OutputField resultField = new OutputField(outputField);
+			List<org.dmg.pmml.OutputField> pmmlOutputFields = output.getOutputFields();
+			for(org.dmg.pmml.OutputField pmmlOutputField : pmmlOutputFields){
 
-				resultFields.add(resultField);
+				if(outputFilter.test(pmmlOutputField)){
+					OutputField outputField = new OutputField(pmmlOutputField);
+
+					outputFields.add(outputField);
+				}
 			}
 		}
 
-		return ImmutableList.copyOf(resultFields);
+		return ImmutableList.copyOf(outputFields);
 	}
 
-	protected Set<org.dmg.pmml.ResultFeature> collectResultFeatures(){
-		M model = getModel();
+	protected Field<?> resolveField(FieldName name){
 
-		Output output = model.getOutput();
+		if(this.resolvedFields == null){
+			this.resolvedFields = resolveFields();
+		}
 
-		Set<org.dmg.pmml.ResultFeature> resultFeatures = EnumSet.noneOf(org.dmg.pmml.ResultFeature.class);
+		return this.resolvedFields.get(name);
+	}
 
-		if(output != null && output.hasOutputFields()){
-			List<org.dmg.pmml.OutputField> outputFields = output.getOutputFields();
+	private Map<FieldName, Field<?>> resolveFields(){
+		Map<FieldName, Field<?>> result = new HashMap<>();
 
-			for(org.dmg.pmml.OutputField outputField : outputFields){
-				resultFeatures.add(outputField.getResultFeature());
+		PMML pmml = getPMML();
+		Model model = getModel();
+
+		FieldResolver fieldResolver = new FieldResolver(){
+
+			@Override
+			public PMMLObject popParent(){
+				PMMLObject parent = super.popParent();
+
+				if(Objects.equals(model, parent)){
+					Model model = (Model)parent;
+
+					Collection<Field<?>> fields = getFields(model);
+					for(Field<?> field : fields){
+						FieldName name = field.getName();
+
+						Field<?> prevField = result.put(name, field);
+						if(prevField != null){
+							throw new DuplicateFieldException(name);
+						}
+					}
+				}
+
+				return parent;
 			}
-		}
+		};
 
-		return Sets.immutableEnumSet(resultFeatures);
+		fieldResolver.applyTo(pmml);
+
+		return result;
 	}
 
-	protected M ensureScorableModel(){
-		M model = getModel();
+	private void resetInputFields(){
+		this.inputFields = null;
+		this.activeInputFields = null;
+	}
 
-		if(!model.isScorable()){
-			throw new EvaluationException("Model is not scorable", model);
-		}
-
-		return model;
+	private void resetResultFields(){
+		this.targetResultFields = null;
+		this.outputResultFields = null;
 	}
 
 	public <V> V getValue(LoadingCache<M, V> cache){
@@ -787,6 +1043,12 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		Configuration configuration = ensureConfiguration();
 
 		return configuration.getValueFactoryFactory();
+	}
+
+	protected Predicate<org.dmg.pmml.OutputField> ensureOutputFilter(){
+		Configuration configuration = ensureConfiguration();
+
+		return configuration.getOutputFilter();
 	}
 
 	protected ValueFactory<?> ensureValueFactory(){
@@ -831,25 +1093,32 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		this.configuration = configuration;
 	}
 
+	public InputMapper getInputMapper(){
+		return this.inputMapper;
+	}
+
+	void setInputMapper(InputMapper inputMapper){
+		this.inputMapper = inputMapper;
+
+		resetInputFields();
+	}
+
+	public ResultMapper getResultMapper(){
+		return this.resultMapper;
+	}
+
+	void setResultMapper(ResultMapper resultMapper){
+		this.resultMapper = resultMapper;
+
+		resetResultFields();
+	}
+
 	private ValueFactory<?> getValueFactory(){
 		return this.valueFactory;
 	}
 
 	private void setValueFactory(ValueFactory<?> valueFactory){
 		this.valueFactory = valueFactory;
-	}
-
-	static
-	private <F extends ModelField> F findModelField(Collection<? extends F> fields, FieldName name){
-
-		for(F field : fields){
-
-			if(Objects.equals(field.getName(), name)){
-				return field;
-			}
-		}
-
-		return null;
 	}
 
 	static
@@ -870,13 +1139,13 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 			throw new MissingElementException(modelVerification, PMMLElements.MODELVERIFICATION_INLINETABLE);
 		}
 
-		Table<Integer, String, String> table = InlineTableUtil.getContent(inlineTable);
+		Table<Integer, String, Object> table = InlineTableUtil.getContent(inlineTable);
 
 		List<Map<FieldName, Object>> records = new ArrayList<>();
 
 		Set<Integer> rowKeys = table.rowKeySet();
 		for(Integer rowKey : rowKeys){
-			Map<String, String> row = table.row(rowKey);
+			Map<String, Object> row = table.row(rowKey);
 
 			Map<FieldName, Object> record = new LinkedHashMap<>();
 
@@ -906,6 +1175,25 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		result.setRecords(records);
 
 		return result;
+	}
+
+	static
+	private <F extends ModelField> List<F> updateNames(List<F> fields, java.util.function.Function<FieldName, FieldName> mapper){
+
+		if(mapper == null){
+			return fields;
+		}
+
+		for(F field : fields){
+			FieldName name = field.getFieldName();
+
+			FieldName mappedName = mapper.apply(name);
+			if(mappedName != null && !Objects.equals(mappedName, name)){
+				field.setName(mappedName);
+			}
+		}
+
+		return fields;
 	}
 
 	private static final DataField DEFAULT_TARGET_CONTINUOUS_FLOAT = new DataField(Evaluator.DEFAULT_TARGET_NAME, OpType.CONTINUOUS, DataType.FLOAT);
@@ -965,6 +1253,27 @@ public class ModelEvaluator<M extends Model> implements Evaluator, HasModel<M>, 
 		@Override
 		public Map<FieldName, org.dmg.pmml.OutputField> load(Output output){
 			return IndexableUtil.buildMap(output.getOutputFields());
+		}
+	});
+
+	private static final LoadingCache<Output, Set<ResultFeature>> resultFeaturesCache = CacheUtil.buildLoadingCache(new CacheLoader<Output, Set<ResultFeature>>(){
+
+		@Override
+		public Set<ResultFeature> load(Output output){
+			Set<ResultFeature> result = EnumSet.noneOf(ResultFeature.class);
+
+			List<org.dmg.pmml.OutputField> pmmlOutputFields = output.getOutputFields();
+			for(org.dmg.pmml.OutputField pmmlOutputField : pmmlOutputFields){
+				String segmentId = pmmlOutputField.getSegmentId();
+
+				if(segmentId != null){
+					continue;
+				}
+
+				result.add(pmmlOutputField.getResultFeature());
+			}
+
+			return Sets.immutableEnumSet(result);
 		}
 	});
 

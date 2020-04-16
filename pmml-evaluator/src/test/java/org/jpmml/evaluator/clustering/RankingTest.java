@@ -18,6 +18,7 @@
  */
 package org.jpmml.evaluator.clustering;
 
+import java.util.Collections;
 import java.util.Map;
 
 import org.dmg.pmml.FieldName;
@@ -33,11 +34,13 @@ public class RankingTest extends ModelEvaluatorTest {
 	public void evaluate() throws Exception {
 		ModelEvaluator<?> evaluator = createModelEvaluator();
 
+		checkTargetFields(Collections.singletonList(null), evaluator);
+
 		Map<FieldName, ?> arguments = createArguments("input", 1d);
 
 		Map<FieldName, ?> results = evaluator.evaluate(arguments);
 
-		ClusterAffinityDistribution<?> affinityDistribution = (ClusterAffinityDistribution<?>)results.get(evaluator.getTargetFieldName());
+		ClusterAffinityDistribution<?> affinityDistribution = (ClusterAffinityDistribution<?>)results.get(evaluator.getTargetName());
 
 		assertEquals("2", affinityDistribution.getResult());
 

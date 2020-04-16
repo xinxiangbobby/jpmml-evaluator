@@ -20,11 +20,19 @@ package org.jpmml.evaluator;
 
 import java.io.Serializable;
 
+import org.dmg.pmml.FieldName;
+
 public class ConfigurationBuilder implements Cloneable, Serializable {
 
 	private ModelEvaluatorFactory modelEvaluatorFactory = null;
 
 	private ValueFactoryFactory valueFactoryFactory = null;
+
+	private OutputFilter outputFilter = null;
+
+	private SymbolTable<FieldName> derivedFieldGuard = null;
+
+	private SymbolTable<String> functionGuard = null;
 
 
 	public ConfigurationBuilder(){
@@ -57,6 +65,19 @@ public class ConfigurationBuilder implements Cloneable, Serializable {
 
 		configuration.setValueFactoryFactory(valueFactoryFactory);
 
+		OutputFilter outputFilter = getOutputFilter();
+		if(outputFilter == null){
+			outputFilter = OutputFilters.KEEP_ALL;
+		}
+
+		configuration.setOutputFilter(outputFilter);
+
+		SymbolTable<FieldName> derivedFieldGuard = getDerivedFieldGuard();
+		SymbolTable<String> functionGuard = getFunctionGuard();
+
+		configuration.setDerivedFieldGuard(derivedFieldGuard);
+		configuration.setFunctionGuard(functionGuard);
+
 		return configuration;
 	}
 
@@ -76,6 +97,36 @@ public class ConfigurationBuilder implements Cloneable, Serializable {
 
 	public ConfigurationBuilder setValueFactoryFactory(ValueFactoryFactory valueFactoryFactory){
 		this.valueFactoryFactory = valueFactoryFactory;
+
+		return this;
+	}
+
+	public OutputFilter getOutputFilter(){
+		return this.outputFilter;
+	}
+
+	public ConfigurationBuilder setOutputFilter(OutputFilter outputFilter){
+		this.outputFilter = outputFilter;
+
+		return this;
+	}
+
+	public SymbolTable<FieldName> getDerivedFieldGuard(){
+		return this.derivedFieldGuard;
+	}
+
+	public ConfigurationBuilder setDerivedFieldGuard(SymbolTable<FieldName> derivedFieldGuard){
+		this.derivedFieldGuard = derivedFieldGuard;
+
+		return this;
+	}
+
+	public SymbolTable<String> getFunctionGuard(){
+		return this.functionGuard;
+	}
+
+	public ConfigurationBuilder setFunctionGuard(SymbolTable<String> functionGuard){
+		this.functionGuard = functionGuard;
 
 		return this;
 	}

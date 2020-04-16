@@ -43,13 +43,13 @@ public class OrdinalValue extends DiscreteValue {
 	}
 
 	@Override
-	public int compareToString(String string){
+	public int compareToValue(Object value){
 		List<?> ordering = getOrdering();
 		if(ordering == null){
-			return super.compareToString(string);
+			return super.compareToValue(value);
 		}
 
-		return compare(ordering, getValue(), TypeUtil.parse(getDataType(), string));
+		return compare(ordering, getValue(), TypeUtil.parseOrCast(getDataType(), value));
 	}
 
 	@Override
@@ -59,7 +59,7 @@ public class OrdinalValue extends DiscreteValue {
 			return super.compareToValue(value);
 		}
 
-		return compare(ordering, getValue(), TypeUtil.parseOrCast(getDataType(), value.getValue()));
+		return compare(ordering, getValue(), value.getValue(getDataType()));
 	}
 
 	@Override
@@ -102,14 +102,14 @@ public class OrdinalValue extends DiscreteValue {
 	}
 
 	static
-	public OrdinalValue create(DataType dataType, List<?> ordering, Object value){
+	public FieldValue create(DataType dataType, List<?> ordering, Object value){
 
 		if(ordering != null && ordering.isEmpty()){
 			ordering = null;
 		} // End if
 
 		if(value instanceof Collection){
-			return new OrdinalValue(dataType, ordering, value);
+			return new CollectionValue(dataType, OpType.ORDINAL, ordering, (Collection<?>)value);
 		}
 
 		switch(dataType){
@@ -133,10 +133,20 @@ public class OrdinalValue extends DiscreteValue {
 	}
 
 	static
-	private class OrdinalString extends OrdinalValue implements Scalar {
+	private class OrdinalString extends OrdinalValue {
 
 		OrdinalString(List<?> ordering, Object value){
 			super(DataType.STRING, ordering, value);
+		}
+
+		@Override
+		public boolean equalsValue(Object value){
+
+			if(value instanceof String){
+				return (asString()).equals(value);
+			}
+
+			return super.equalsValue(value);
 		}
 
 		@Override

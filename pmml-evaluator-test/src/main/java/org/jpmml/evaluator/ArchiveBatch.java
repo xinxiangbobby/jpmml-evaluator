@@ -27,7 +27,9 @@ import java.util.function.Predicate;
 
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.PMML;
+import org.jpmml.evaluator.visitors.DefaultModelEvaluatorBattery;
 import org.jpmml.model.PMMLUtil;
+import org.jpmml.model.visitors.VisitorBattery;
 
 abstract
 public class ArchiveBatch implements Batch {
@@ -48,11 +50,22 @@ public class ArchiveBatch implements Batch {
 	abstract
 	public InputStream open(String path);
 
-	@Override
-	public Evaluator getEvaluator() throws Exception {
+	public EvaluatorBuilder getEvaluatorBuilder() throws Exception {
 		PMML pmml = getPMML();
 
-		EvaluatorBuilder evaluatorBuilder = new ModelEvaluatorBuilder(pmml);
+		VisitorBattery visitorBattery = new DefaultModelEvaluatorBattery();
+		visitorBattery.applyTo(pmml);
+
+		EvaluatorBuilder evaluatorBuilder = new ModelEvaluatorBuilder(pmml)
+			.setDerivedFieldGuard(new FieldNameSet(8))
+			.setFunctionGuard(new FunctionNameStack(4));
+
+		return evaluatorBuilder;
+	}
+
+	@Override
+	public Evaluator getEvaluator() throws Exception {
+		EvaluatorBuilder evaluatorBuilder = getEvaluatorBuilder();
 
 		Evaluator evaluator = evaluatorBuilder.build();
 

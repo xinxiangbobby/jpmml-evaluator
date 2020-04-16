@@ -36,6 +36,7 @@ import org.dmg.pmml.Target;
 import org.dmg.pmml.TargetValue;
 import org.dmg.pmml.Targets;
 import org.dmg.pmml.Version;
+import org.dmg.pmml.tree.LeafNode;
 import org.dmg.pmml.tree.Node;
 import org.dmg.pmml.tree.TreeModel;
 import org.jpmml.evaluator.tree.TreeModelEvaluator;
@@ -68,7 +69,7 @@ public class TargetUtilTest {
 
 		evaluator = createTreeModelEvaluator(MiningFunction.REGRESSION, MathContext.DOUBLE, target);
 
-		dataField = evaluator.getDataField();
+		dataField = evaluator.getDefaultDataField();
 
 		assertEquals(OpType.CONTINUOUS, dataField.getOpType());
 		assertEquals(DataType.DOUBLE, dataField.getDataType());
@@ -86,7 +87,7 @@ public class TargetUtilTest {
 
 		TargetValue noValue = new TargetValue()
 			.setValue("no")
-			.setPriorProbability(1d - yesValue.getPriorProbability());
+			.setPriorProbability(1d - NumberUtil.asDouble(yesValue.getPriorProbability()));
 
 		Target target = new Target()
 			.setField(null)
@@ -150,8 +151,7 @@ public class TargetUtilTest {
 
 	static
 	private TreeModelEvaluator createTreeModelEvaluator(MiningFunction miningFunction, MathContext mathContext, Target target){
-		Node root = new Node()
-			.setPredicate(new False());
+		Node root = new LeafNode(null, False.INSTANCE);
 
 		Targets targets = new Targets()
 			.addTargets(target);
@@ -164,6 +164,8 @@ public class TargetUtilTest {
 		PMML pmml = new PMML(Version.PMML_4_3.getVersion(), new Header(), new DataDictionary())
 			.addModels(treeModel);
 
-		return new TreeModelEvaluator(pmml);
+		ModelEvaluatorBuilder modelEvaluatorBuilder = new ModelEvaluatorBuilder(pmml);
+
+		return (TreeModelEvaluator)modelEvaluatorBuilder.build();
 	}
 }

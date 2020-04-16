@@ -23,7 +23,7 @@ import java.util.Collection;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.OpType;
 
-public class ContinuousValue extends FieldValue {
+public class ContinuousValue extends ScalarValue {
 
 	ContinuousValue(DataType dataType, Object value){
 		super(dataType, value);
@@ -35,20 +35,20 @@ public class ContinuousValue extends FieldValue {
 	}
 
 	@Override
-	public int compareToString(String string){
+	public int compareToValue(Object value){
 
 		try {
-			return super.compareToString(string);
-		} catch(NumberFormatException nfeDefault){
+			return super.compareToValue(value);
+		} catch(IllegalArgumentException | TypeCheckException e){
 			Number number;
 
 			try {
-				number = (Number)TypeUtil.parse(DataType.DOUBLE, string);
+				number = (Number)TypeUtil.parseOrCast(DataType.DOUBLE, value);
 			} catch(NumberFormatException nfeDouble){
-				throw nfeDefault;
+				throw e;
 			}
 
-			return ((Comparable)TypeUtil.cast(DataType.DOUBLE, asNumber())).compareTo(number);
+			return ((Comparable)asDouble()).compareTo(number);
 		}
 	}
 
@@ -58,29 +58,49 @@ public class ContinuousValue extends FieldValue {
 	}
 
 	static
-	public ContinuousValue create(DataType dataType, Object value){
+	public FieldValue create(DataType dataType, Object value){
 
 		if(value instanceof Collection){
-			return new ContinuousValue(dataType, value);
+			return new CollectionValue(dataType, OpType.CONTINUOUS, (Collection<?>)value);
 		}
 
 		switch(dataType){
 			case INTEGER:
-				return new ContinuousInteger((Integer)value);
+				return new ContinuousInteger(value);
 			case FLOAT:
-				return new ContinuousFloat((Float)value);
+				return new ContinuousFloat(value);
 			case DOUBLE:
-				return new ContinuousDouble((Double)value);
+				return new ContinuousDouble(value);
 			default:
 				return new ContinuousValue(dataType, value);
 		}
 	}
 
 	static
-	private class ContinuousInteger extends ContinuousValue implements Scalar {
+	private class ContinuousInteger extends ContinuousValue {
 
-		ContinuousInteger(Integer value){
+		ContinuousInteger(Object value){
 			super(DataType.INTEGER, value);
+		}
+
+		@Override
+		public int compareToValue(Object value){
+
+			if(value instanceof Integer){
+				return (asInteger()).compareTo((Integer)value);
+			}
+
+			return super.compareToValue(value);
+		}
+
+		@Override
+		public boolean equalsValue(Object value){
+
+			if(value instanceof Integer){
+				return (asInteger()).equals(value);
+			}
+
+			return super.equalsValue(value);
 		}
 
 		@Override
@@ -95,10 +115,35 @@ public class ContinuousValue extends FieldValue {
 	}
 
 	static
-	private class ContinuousFloat extends ContinuousValue implements Scalar {
+	private class ContinuousFloat extends ContinuousValue {
 
-		ContinuousFloat(Float value){
+		ContinuousFloat(Object value){
 			super(DataType.FLOAT, value);
+
+			Float floatValue = (Float)getValue();
+			if(floatValue.isNaN()){
+				setValid(false);
+			}
+		}
+
+		@Override
+		public int compareToValue(Object value){
+
+			if(value instanceof Float){
+				return (asFloat()).compareTo((Float)value);
+			}
+
+			return super.compareToValue(value);
+		}
+
+		@Override
+		public boolean equalsValue(Object value){
+
+			if(value instanceof Float){
+				return (asFloat()).equals(value);
+			}
+
+			return super.equalsValue(value);
 		}
 
 		@Override
@@ -113,10 +158,35 @@ public class ContinuousValue extends FieldValue {
 	}
 
 	static
-	private class ContinuousDouble extends ContinuousValue implements Scalar {
+	private class ContinuousDouble extends ContinuousValue {
 
-		ContinuousDouble(Double value){
+		ContinuousDouble(Object value){
 			super(DataType.DOUBLE, value);
+
+			Double doubleValue = (Double)getValue();
+			if(doubleValue.isNaN()){
+				setValid(false);
+			}
+		}
+
+		@Override
+		public int compareToValue(Object value){
+
+			if(value instanceof Double){
+				return (asDouble()).compareTo((Double)value);
+			}
+
+			return super.compareToValue(value);
+		}
+
+		@Override
+		public boolean equalsValue(Object value){
+
+			if(value instanceof Double){
+				return (asDouble()).equals(value);
+			}
+
+			return super.equalsValue(value);
 		}
 
 		@Override

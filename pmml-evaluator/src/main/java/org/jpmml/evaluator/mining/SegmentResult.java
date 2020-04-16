@@ -73,12 +73,12 @@ public class SegmentResult extends ForwardingMap<FieldName, Object> implements H
 	public Object getTargetValue(){
 		ModelEvaluator<?> modelEvaluator = getModelEvaluator();
 
-		FieldName targetName = modelEvaluator.getTargetFieldName();
+		FieldName targetName = modelEvaluator.getTargetName();
 
 		return get(targetName);
 	}
 
-	public double getWeight(){
+	public Number getWeight(){
 		Segment segment = getSegment();
 
 		return segment.getWeight();

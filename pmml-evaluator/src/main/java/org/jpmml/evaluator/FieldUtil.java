@@ -36,8 +36,10 @@ import org.dmg.pmml.HasDiscreteDomain;
 import org.dmg.pmml.Interval;
 import org.dmg.pmml.MiningField;
 import org.dmg.pmml.OpType;
+import org.dmg.pmml.PMMLAttributes;
 import org.dmg.pmml.Target;
 import org.dmg.pmml.Value;
+import org.jpmml.model.XPathUtil;
 
 public class FieldUtil {
 
@@ -45,7 +47,7 @@ public class FieldUtil {
 	}
 
 	static
-	public List<String> getCategories(DataField dataField){
+	public List<Object> getCategories(DataField dataField){
 		return CacheUtil.getValue(dataField, FieldUtil.categoryCache);
 	}
 
@@ -70,7 +72,7 @@ public class FieldUtil {
 
 		// "A MiningField overrides a (Data)Field"
 		if(miningField != null){
-			opType = firstNonNull(miningField.getOpType(), opType);
+			opType = miningField.getOpType(opType);
 		}
 
 		return opType;
@@ -82,10 +84,10 @@ public class FieldUtil {
 
 		// "A MiningField overrides a (Data)Field, and a Target overrides a MiningField"
 		if(miningField != null){
-			opType = firstNonNull(miningField.getOpType(), opType);
+			opType = miningField.getOpType(opType);
 
 			if(target != null){
-				opType = firstNonNull(target.getOpType(), opType);
+				opType = target.getOpType(opType);
 			}
 		}
 
@@ -93,22 +95,22 @@ public class FieldUtil {
 	}
 
 	static
-	private List<String> parseCategories(DataField dataField){
-		List<String> result = new ArrayList<>();
+	private List<Object> parseCategories(DataField dataField){
+		List<Object> result = new ArrayList<>();
 
 		if(dataField.hasValues()){
 			List<Value> pmmlValues = dataField.getValues();
 
 			for(Value pmmlValue : pmmlValues){
-				String stringValue = pmmlValue.getValue();
-				if(stringValue == null){
+				Object simpleValue = pmmlValue.getValue();
+				if(simpleValue == null){
 					throw new MissingAttributeException(pmmlValue, PMMLAttributes.VALUE_VALUE);
 				}
 
 				Value.Property property = pmmlValue.getProperty();
 				switch(property){
 					case VALID:
-						result.add(stringValue);
+						result.add(simpleValue);
 						break;
 					default:
 						break;
@@ -132,15 +134,15 @@ public class FieldUtil {
 			List<Value> pmmlValues = field.getValues();
 
 			for(Value pmmlValue : pmmlValues){
-				String stringValue = pmmlValue.getValue();
-				if(stringValue == null){
+				Object simpleValue = pmmlValue.getValue();
+				if(simpleValue == null){
 					throw new MissingAttributeException(pmmlValue, PMMLAttributes.VALUE_VALUE);
 				}
 
 				Value.Property property = pmmlValue.getProperty();
 				switch(property){
 					case VALID:
-						result.add(TypeUtil.parse(dataType, stringValue));
+						result.add(TypeUtil.parseOrCast(dataType, simpleValue));
 						break;
 					default:
 						break;
@@ -168,20 +170,10 @@ public class FieldUtil {
 		return result;
 	}
 
-	static
-	private <V> V firstNonNull(V value, V defaultValue){
-
-		if(value != null){
-			return value;
-		}
-
-		return defaultValue;
-	}
-
-	private static final LoadingCache<DataField, List<String>> categoryCache = CacheUtil.buildLoadingCache(new CacheLoader<DataField, List<String>>(){
+	private static final LoadingCache<DataField, List<Object>> categoryCache = CacheUtil.buildLoadingCache(new CacheLoader<DataField, List<Object>>(){
 
 		@Override
-		public List<String> load(DataField dataField){
+		public List<Object> load(DataField dataField){
 			return ImmutableList.copyOf(parseCategories(dataField));
 		}
 	});

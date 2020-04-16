@@ -28,18 +28,20 @@
 package org.jpmml.evaluator;
 
 import java.util.List;
-import java.util.Objects;
 
 import org.dmg.pmml.Array;
 import org.dmg.pmml.CompoundPredicate;
 import org.dmg.pmml.False;
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.HasPredicate;
+import org.dmg.pmml.PMMLAttributes;
+import org.dmg.pmml.PMMLElements;
 import org.dmg.pmml.PMMLObject;
 import org.dmg.pmml.Predicate;
 import org.dmg.pmml.SimplePredicate;
 import org.dmg.pmml.SimpleSetPredicate;
 import org.dmg.pmml.True;
+import org.jpmml.model.XPathUtil;
 
 public class PredicateUtil {
 
@@ -116,19 +118,17 @@ public class PredicateUtil {
 			throw new MissingAttributeException(simplePredicate, PMMLAttributes.SIMPLEPREDICATE_OPERATOR);
 		}
 
-		String stringValue = simplePredicate.getValue();
-
 		switch(operator){
 			case IS_MISSING:
 			case IS_NOT_MISSING:
 				// "If the operator is isMissing or isNotMissing, then the value attribute must not appear"
-				if(stringValue != null){
-					throw new MisplacedAttributeException(simplePredicate, PMMLAttributes.SIMPLEPREDICATE_VALUE, stringValue);
+				if(simplePredicate.hasValue()){
+					throw new MisplacedAttributeException(simplePredicate, PMMLAttributes.SIMPLEPREDICATE_VALUE, simplePredicate.getValue());
 				}
 				break;
 			default:
 				// "With all other operators, however, the value attribute is required"
-				if(stringValue == null){
+				if(!simplePredicate.hasValue()){
 					throw new MissingAttributeException(simplePredicate, PMMLAttributes.SIMPLEPREDICATE_VALUE);
 				}
 				break;
@@ -138,15 +138,15 @@ public class PredicateUtil {
 
 		switch(operator){
 			case IS_MISSING:
-				return Boolean.valueOf(Objects.equals(FieldValues.MISSING_VALUE, value));
+				return Boolean.valueOf(FieldValueUtil.isMissing(value));
 			case IS_NOT_MISSING:
-				return Boolean.valueOf(!Objects.equals(FieldValues.MISSING_VALUE, value));
+				return Boolean.valueOf(!FieldValueUtil.isMissing(value));
 			default:
 				break;
 		}
 
 		// "A SimplePredicate evaluates to unknwon if the input value is missing"
-		if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+		if(FieldValueUtil.isMissing(value)){
 			return null;
 		}
 
@@ -189,7 +189,7 @@ public class PredicateUtil {
 
 		FieldValue value = context.evaluate(name);
 
-		if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+		if(FieldValueUtil.isMissing(value)){
 			return null;
 		}
 

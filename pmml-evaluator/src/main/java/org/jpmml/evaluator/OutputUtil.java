@@ -21,10 +21,9 @@ package org.jpmml.evaluator;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Predicate;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Ordering;
@@ -36,6 +35,7 @@ import org.dmg.pmml.Model;
 import org.dmg.pmml.OpType;
 import org.dmg.pmml.Output;
 import org.dmg.pmml.OutputField;
+import org.dmg.pmml.PMMLAttributes;
 import org.dmg.pmml.ResultFeature;
 import org.dmg.pmml.Target;
 import org.dmg.pmml.TargetValue;
@@ -45,7 +45,9 @@ import org.dmg.pmml.association.Item;
 import org.dmg.pmml.association.ItemRef;
 import org.dmg.pmml.association.Itemset;
 import org.dmg.pmml.mining.MiningModel;
+import org.dmg.pmml.mining.Segmentation;
 import org.jpmml.evaluator.mining.MiningModelEvaluationContext;
+import org.jpmml.evaluator.mining.MiningModelUtil;
 import org.jpmml.evaluator.mining.SegmentResult;
 
 public class OutputUtil {
@@ -62,9 +64,6 @@ public class OutputUtil {
 	 *
 	 * @return A map of {@link Evaluator#getTargetFields() target field} values together with {@link Evaluator#getOutputFields() output field} values.
 	 */
-	@SuppressWarnings (
-		value = {"fallthrough"}
-	)
 	static
 	public Map<FieldName, ?> evaluate(Map<FieldName, ?> predictions, ModelEvaluationContext context){
 		ModelEvaluator<?> modelEvaluator = context.getModelEvaluator();
@@ -76,7 +75,9 @@ public class OutputUtil {
 			return predictions;
 		}
 
-		Map<FieldName, Object> result = new LinkedHashMap<>(predictions);
+		OutputMap result = new OutputMap(predictions);
+
+		Predicate<OutputField> outputFilter = modelEvaluator.ensureOutputFilter();
 
 		List<OutputField> outputFields = output.getOutputFields();
 
@@ -86,17 +87,37 @@ public class OutputUtil {
 
 			Object targetValue = null;
 
+			boolean requireTargetValue;
+
 			ResultFeature resultFeature = outputField.getResultFeature();
+			switch(resultFeature){
+				case TRANSFORMED_VALUE:
+				case DECISION:
+				case WARNING:
+					{
+						if(targetName != null){
+							throw new MisplacedAttributeException(outputField, PMMLAttributes.OUTPUTFIELD_TARGETFIELD, targetName);
+						}
+
+						requireTargetValue = false;
+					}
+					break;
+				default:
+					{
+						requireTargetValue = true;
+					}
+					break;
+			}
 
 			String segmentId = outputField.getSegmentId();
 
-			SegmentResult segmentPredictions = null;
+			SegmentResult segmentPredictions;
 
 			// Load the target value of the specified segment
 			if(segmentId != null){
 
 				if(!(model instanceof MiningModel)){
-					throw new InvalidAttributeException(outputField, PMMLAttributes.OUTPUTFIELD_SEGMENTID, segmentId);
+					throw new MisplacedAttributeException(outputField, PMMLAttributes.OUTPUTFIELD_SEGMENTID, segmentId);
 				}
 
 				MiningModelEvaluationContext miningModelContext = (MiningModelEvaluationContext)context;
@@ -108,51 +129,78 @@ public class OutputUtil {
 					continue outputFields;
 				} // End if
 
-				if(targetName != null){
+				if(requireTargetValue){
 
-					if(!segmentPredictions.containsKey(targetName)){
-						throw new MissingValueException(targetName, outputField);
+					if(targetName != null){
+
+						if(!segmentPredictions.containsKey(targetName)){
+							throw new MissingValueException(targetName, outputField);
+						}
+
+						targetValue = segmentPredictions.get(targetName);
+					} else
+
+					{
+						targetValue = segmentPredictions.getTargetValue();
 					}
-
-					targetValue = segmentPredictions.get(targetName);
-				} else
-
-				{
-					targetValue = segmentPredictions.getTargetValue();
 				}
 			} else
 
 			// Load the target value
 			{
-				switch(resultFeature){
-					case ENTITY_ID:
-						{
-							// "Result feature entityId returns the id of the winning segment"
-							if(model instanceof MiningModel){
-								targetValue = TypeUtil.cast(HasEntityId.class, predictions);
+				segmentPredictions = null;
 
+				targetValue:
+				if(requireTargetValue){
+
+					if(model instanceof MiningModel){
+						MiningModel miningModel = (MiningModel)model;
+
+						switch(resultFeature){
+							case ENTITY_ID:
+								{
+									if(targetName != null){
+										throw new MisplacedAttributeException(outputField, PMMLAttributes.OUTPUTFIELD_TARGETFIELD, targetName);
+									}
+
+									// "Result feature entityId returns the id of the winning segment"
+									targetValue = TypeUtil.cast(HasEntityId.class, predictions);
+
+									break targetValue;
+								}
+							default:
+								{
+									if(targetName != null){
+										break;
+									}
+
+									Segmentation segmentation = miningModel.getSegmentation();
+
+									SegmentResult segmentResult = MiningModelUtil.asSegmentResult(segmentation.getMultipleModelMethod(), predictions);
+									if(segmentResult != null){
+										targetValue = segmentResult.getTargetValue();
+
+										break targetValue;
+									}
+								}
 								break;
-							}
 						}
-						// Falls through
-					default:
-						{
-							if(targetName == null){
-								targetName = modelEvaluator.getTargetFieldName();
-							} // End if
+					} // End if
 
-							if(!predictions.containsKey(targetName)){
-								throw new MissingValueException(targetName, outputField);
-							}
+					if(targetName == null){
+						targetName = modelEvaluator.getTargetName();
+					} // End if
 
-							targetValue = predictions.get(targetName);
-						}
-						break;
+					if(!predictions.containsKey(targetName)){
+						throw new MissingValueException(targetName, outputField);
+					}
+
+					targetValue = predictions.get(targetName);
 				}
 			}
 
 			// "If the target value is missing, then the result delivered by this OutputField is missing"
-			if(targetValue == null){
+			if(requireTargetValue && targetValue == null){
 				continue outputFields;
 			}
 
@@ -183,17 +231,19 @@ public class OutputUtil {
 				case DECISION:
 					{
 						if(segmentId != null){
-							String name = outputField.getValue();
+							Object name = outputField.getValue();
 							if(name == null){
 								throw new MissingAttributeException(outputField, PMMLAttributes.OUTPUTFIELD_VALUE);
 							}
+
+							name = TypeUtil.format(name);
 
 							Expression expression = outputField.getExpression();
 							if(expression != null){
 								throw new MisplacedElementException(expression);
 							}
 
-							value = segmentPredictions.get(FieldName.create(name));
+							value = segmentPredictions.get(FieldName.create((String)name));
 
 							break;
 						}
@@ -224,7 +274,7 @@ public class OutputUtil {
 						}
 
 						FieldValue expectedTargetValue = context.evaluate(targetName);
-						if(Objects.equals(FieldValues.MISSING_VALUE, expectedTargetValue)){
+						if(FieldValueUtil.isMissing(expectedTargetValue)){
 							throw new MissingValueException(targetName, outputField);
 						}
 
@@ -271,7 +321,7 @@ public class OutputUtil {
 				case CLUSTER_AFFINITY:
 				case ENTITY_AFFINITY:
 					{
-						String entityId = outputField.getValue();
+						Object entityId = outputField.getValue();
 
 						// Select the specified entity instead of the winning entity
 						if(entityId != null){
@@ -403,7 +453,13 @@ public class OutputUtil {
 			// The result of one output field becomes available to other output fields
 			context.declare(outputName, outputValue);
 
-			result.put(outputName, FieldValueUtil.getValue(outputValue));
+			if(outputFilter.test(outputField)){
+				result.putPublic(outputName, FieldValueUtil.getValue(outputValue));
+			} else
+
+			{
+				result.putPrivate(outputName, FieldValueUtil.getValue(outputValue));
+			}
 		}
 
 		return result;
@@ -470,7 +526,7 @@ public class OutputUtil {
 	private Double getProbability(Object object, OutputField outputField){
 		HasProbability hasProbability = TypeUtil.cast(HasProbability.class, object);
 
-		String value = getCategoryValue(object, outputField);
+		Object value = getCategoryValue(object, outputField);
 
 		return hasProbability.getProbability(value);
 	}
@@ -479,41 +535,39 @@ public class OutputUtil {
 	private Double getConfidence(Object object, OutputField outputField){
 		HasConfidence hasConfidence = TypeUtil.cast(HasConfidence.class, object);
 
-		String value = getCategoryValue(object, outputField);
+		Object value = getCategoryValue(object, outputField);
 
 		return hasConfidence.getConfidence(value);
 	}
 
 	static
-	private String getCategoryValue(Object object, OutputField outputField){
-		String value = outputField.getValue();
+	private Object getCategoryValue(Object object, OutputField outputField){
+		Object value = outputField.getValue();
 
 		// "If the value attribute is not specified, then the predicted categorical value should be returned as a result"
 		if(value == null){
-			return (String)TypeUtil.cast(DataType.STRING, getPredictedValue(object));
+			return getPredictedValue(object);
 		}
 
 		return value;
 	}
 
 	static
-	private Double getContinuousResidual(Object object, FieldValue expectedObject){
-		Number value = (Number)getPredictedValue(object);
-		Number expectedValue = (Number)FieldValueUtil.getValue(expectedObject);
+	private Number getContinuousResidual(Object value, FieldValue expectedValue){
+		value = getPredictedValue(value);
 
-		return Double.valueOf(expectedValue.doubleValue() - value.doubleValue());
+		return Functions.SUBTRACT.evaluate(expectedValue.asNumber(), (Number)value);
 	}
 
 	static
-	public Double getDiscreteResidual(Object object, FieldValue expectedObject){
-		HasProbability hasProbability = TypeUtil.cast(HasProbability.class, object);
+	public Number getDiscreteResidual(Object value, FieldValue expectedValue){
+		HasProbability hasProbability = TypeUtil.cast(HasProbability.class, value);
 
-		String value = (String)TypeUtil.cast(DataType.STRING, getPredictedValue(object));
-		String expectedValue = (String)TypeUtil.cast(DataType.STRING, FieldValueUtil.getValue(expectedObject));
+		value = getPredictedValue(value);
 
-		boolean equals = (value).equals(expectedValue);
+		boolean equals = expectedValue.equalsValue(value);
 
-		return Double.valueOf((equals ? 1d : 0d) - hasProbability.getProbability(value));
+		return Functions.SUBTRACT.evaluate(equals ? Numbers.DOUBLE_ONE : Numbers.DOUBLE_ZERO, hasProbability.getProbability(value));
 	}
 
 	static
@@ -572,9 +626,11 @@ public class OutputUtil {
 			return getElement(hasAffinityRanking.getAffinityRanking(), rank);
 		}
 
-		String value = getCategoryValue(object, outputField);
+		Object value = getCategoryValue(object, outputField);
 
-		return hasAffinity.getAffinity(value);
+		value = TypeUtil.format(value);
+
+		return hasAffinity.getAffinity((String)value);
 	}
 
 	static
@@ -682,7 +738,7 @@ public class OutputUtil {
 				{
 					HasProbability hasProbability = TypeUtil.cast(HasProbability.class, object);
 
-					String value = getCategoryValue(object, outputField);
+					Object value = getCategoryValue(object, outputField);
 
 					report = hasProbability.getProbabilityReport(value);
 				}
@@ -691,7 +747,7 @@ public class OutputUtil {
 				{
 					HasConfidence hasConfidence = TypeUtil.cast(HasConfidence.class, object);
 
-					String value = getCategoryValue(object, outputField);
+					Object value = getCategoryValue(object, outputField);
 
 					report = hasConfidence.getConfidenceReport(value);
 				}
@@ -700,9 +756,11 @@ public class OutputUtil {
 				{
 					HasAffinity hasAffinity = TypeUtil.cast(HasAffinity.class, object);
 
-					String value = getCategoryValue(object, outputField);
+					Object value = getCategoryValue(object, outputField);
 
-					report = hasAffinity.getAffinityReport(value);
+					value = TypeUtil.format(value);
+
+					report = hasAffinity.getAffinityReport((String)value);
 				}
 				break;
 			default:
@@ -736,27 +794,35 @@ public class OutputUtil {
 
 			@Override
 			public int compare(AssociationRule left, AssociationRule right){
-				int order;
+				Number leftValue;
+				Number rightValue;
 
 				switch(this.rankBasis){
 					case CONFIDENCE:
-						order = (getConfidence(left)).compareTo(getConfidence(right));
+						leftValue = getConfidence(left);
+						rightValue = getConfidence(right);
 						break;
 					case SUPPORT:
-						order = (getSupport(left)).compareTo(getSupport(right));
+						leftValue = getSupport(left);
+						rightValue = getSupport(right);
 						break;
 					case LIFT:
-						order = (getLift(left)).compareTo(getLift(right));
+						leftValue = getLift(left);
+						rightValue = getLift(right);
 						break;
 					case LEVERAGE:
-						order = (getLeverage(left)).compareTo(getLeverage(right));
+						leftValue = getLeverage(left);
+						rightValue = getLeverage(right);
 						break;
 					case AFFINITY:
-						order = (getAffinity(left)).compareTo(getAffinity(right));
+						leftValue = getAffinity(left);
+						rightValue = getAffinity(right);
 						break;
 					default:
 						throw new UnsupportedAttributeException(outputField, this.rankBasis);
-				} // End switch
+				}
+
+				int order = NumberUtil.compare(leftValue, rightValue);
 
 				switch(this.rankOrder){
 					case ASCENDING:
@@ -768,36 +834,46 @@ public class OutputUtil {
 				}
 			}
 
-			private Double getConfidence(AssociationRule associationRule){
-				return associationRule.getConfidence();
+			private Number getConfidence(AssociationRule associationRule){
+				Number confidence = associationRule.getConfidence();
+				if(confidence == null){
+					throw new MissingAttributeException(associationRule, org.dmg.pmml.association.PMMLAttributes.ASSOCIATIONRULE_CONFIDENCE);
+				}
+
+				return confidence;
 			}
 
-			private Double getSupport(AssociationRule associationRule){
-				return associationRule.getSupport();
+			private Number getSupport(AssociationRule associationRule){
+				Number support = associationRule.getSupport();
+				if(support == null){
+					throw new MissingAttributeException(associationRule, org.dmg.pmml.association.PMMLAttributes.ASSOCIATIONRULE_SUPPORT);
+				}
+
+				return support;
 			}
 
-			private Double getLift(AssociationRule associationRule){
-				Double lift = associationRule.getLift();
+			private Number getLift(AssociationRule associationRule){
+				Number lift = associationRule.getLift();
 				if(lift == null){
-					throw new MissingAttributeException(associationRule, PMMLAttributes.ASSOCIATIONRULE_LIFT);
+					throw new MissingAttributeException(associationRule, org.dmg.pmml.association.PMMLAttributes.ASSOCIATIONRULE_LIFT);
 				}
 
 				return lift;
 			}
 
-			private Double getLeverage(AssociationRule associationRule){
-				Double leverage = associationRule.getLeverage();
+			private Number getLeverage(AssociationRule associationRule){
+				Number leverage = associationRule.getLeverage();
 				if(leverage == null){
-					throw new MissingAttributeException(associationRule, PMMLAttributes.ASSOCIATIONRULE_LEVERAGE);
+					throw new MissingAttributeException(associationRule, org.dmg.pmml.association.PMMLAttributes.ASSOCIATIONRULE_LEVERAGE);
 				}
 
 				return leverage;
 			}
 
-			private Double getAffinity(AssociationRule associationRule){
-				Double affinity = associationRule.getAffinity();
+			private Number getAffinity(AssociationRule associationRule){
+				Number affinity = associationRule.getAffinity();
 				if(affinity == null){
-					throw new MissingAttributeException(associationRule, PMMLAttributes.ASSOCIATIONRULE_AFFINITY);
+					throw new MissingAttributeException(associationRule, org.dmg.pmml.association.PMMLAttributes.ASSOCIATIONRULE_AFFINITY);
 				}
 
 				return affinity;

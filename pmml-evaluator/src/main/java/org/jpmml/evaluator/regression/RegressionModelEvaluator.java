@@ -25,12 +25,12 @@ import java.util.Objects;
 
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.FieldRef;
-import org.dmg.pmml.MathContext;
-import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.OpType;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.regression.CategoricalPredictor;
 import org.dmg.pmml.regression.NumericPredictor;
+import org.dmg.pmml.regression.PMMLAttributes;
+import org.dmg.pmml.regression.PMMLElements;
 import org.dmg.pmml.regression.PredictorTerm;
 import org.dmg.pmml.regression.RegressionModel;
 import org.dmg.pmml.regression.RegressionTable;
@@ -38,17 +38,13 @@ import org.jpmml.evaluator.Classification;
 import org.jpmml.evaluator.EvaluationContext;
 import org.jpmml.evaluator.ExpressionUtil;
 import org.jpmml.evaluator.FieldValue;
-import org.jpmml.evaluator.FieldValues;
+import org.jpmml.evaluator.FieldValueUtil;
 import org.jpmml.evaluator.InvalidAttributeException;
 import org.jpmml.evaluator.InvalidElementException;
 import org.jpmml.evaluator.InvalidElementListException;
 import org.jpmml.evaluator.MissingAttributeException;
 import org.jpmml.evaluator.MissingElementException;
-import org.jpmml.evaluator.ModelEvaluationContext;
 import org.jpmml.evaluator.ModelEvaluator;
-import org.jpmml.evaluator.OutputUtil;
-import org.jpmml.evaluator.PMMLAttributes;
-import org.jpmml.evaluator.PMMLElements;
 import org.jpmml.evaluator.PMMLUtil;
 import org.jpmml.evaluator.TargetField;
 import org.jpmml.evaluator.TargetUtil;
@@ -77,52 +73,14 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 	}
 
 	@Override
-	public Map<FieldName, ?> evaluate(ModelEvaluationContext context){
-		RegressionModel regressionModel = ensureScorableModel();
-
-		ValueFactory<?> valueFactory;
-
-		MathContext mathContext = regressionModel.getMathContext();
-		switch(mathContext){
-			case FLOAT:
-			case DOUBLE:
-				valueFactory = ensureValueFactory();
-				break;
-			default:
-				throw new UnsupportedAttributeException(regressionModel, mathContext);
-		}
-
-		Map<FieldName, ?> predictions;
-
-		MiningFunction miningFunction = regressionModel.getMiningFunction();
-		switch(miningFunction){
-			case REGRESSION:
-				predictions = evaluateRegression(valueFactory, context);
-				break;
-			case CLASSIFICATION:
-				predictions = evaluateClassification(valueFactory, context);
-				break;
-			case ASSOCIATION_RULES:
-			case SEQUENCES:
-			case CLUSTERING:
-			case TIME_SERIES:
-			case MIXED:
-				throw new InvalidAttributeException(regressionModel, miningFunction);
-			default:
-				throw new UnsupportedAttributeException(regressionModel, miningFunction);
-		}
-
-		return OutputUtil.evaluate(predictions, context);
-	}
-
-	private <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
+	protected <V extends Number> Map<FieldName, ?> evaluateRegression(ValueFactory<V> valueFactory, EvaluationContext context){
 		RegressionModel regressionModel = getModel();
 
 		TargetField targetField = getTargetField();
 
-		FieldName targetName = regressionModel.getTargetFieldName();
-		if(targetName != null && !Objects.equals(targetField.getName(), targetName)){
-			throw new InvalidAttributeException(regressionModel, PMMLAttributes.REGRESSIONMODEL_TARGETFIELDNAME, targetName);
+		FieldName targetName = regressionModel.getTargetField();
+		if(targetName != null && !Objects.equals(targetField.getFieldName(), targetName)){
+			throw new InvalidAttributeException(regressionModel, PMMLAttributes.REGRESSIONMODEL_TARGETFIELD, targetName);
 		}
 
 		List<RegressionTable> regressionTables = regressionModel.getRegressionTables();
@@ -158,14 +116,15 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 		return TargetUtil.evaluateRegression(targetField, result);
 	}
 
-	private <V extends Number> Map<FieldName, ? extends Classification<V>> evaluateClassification(ValueFactory<V> valueFactory, EvaluationContext context){
+	@Override
+	protected <V extends Number> Map<FieldName, ? extends Classification<?, V>> evaluateClassification(ValueFactory<V> valueFactory, EvaluationContext context){
 		RegressionModel regressionModel = getModel();
 
 		TargetField targetField = getTargetField();
 
-		FieldName targetName = regressionModel.getTargetFieldName();
-		if(targetName != null && !Objects.equals(targetField.getName(), targetName)){
-			throw new InvalidAttributeException(regressionModel, PMMLAttributes.REGRESSIONMODEL_TARGETFIELDNAME, targetName);
+		FieldName targetName = regressionModel.getTargetField();
+		if(targetName != null && !Objects.equals(targetField.getFieldName(), targetName)){
+			throw new InvalidAttributeException(regressionModel, PMMLAttributes.REGRESSIONMODEL_TARGETFIELD, targetName);
 		}
 
 		OpType opType = targetField.getOpType();
@@ -182,15 +141,15 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 			throw new InvalidElementListException(regressionTables);
 		}
 
-		List<String> targetCategories = targetField.getCategories();
+		List<?> targetCategories = targetField.getCategories();
 		if(targetCategories != null && targetCategories.size() != regressionTables.size()){
 			throw new InvalidElementListException(regressionTables);
 		}
 
-		ValueMap<String, V> values = new ValueMap<>(2 * regressionTables.size());
+		ValueMap<Object, V> values = new ValueMap<>(2 * regressionTables.size());
 
 		for(RegressionTable regressionTable : regressionTables){
-			String targetCategory = regressionTable.getTargetCategory();
+			Object targetCategory = regressionTable.getTargetCategory();
 			if(targetCategory == null){
 				throw new MissingAttributeException(regressionTable, PMMLAttributes.REGRESSIONTABLE_TARGETCATEGORY);
 			} // End if
@@ -276,7 +235,7 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 				throw new UnsupportedAttributeException(regressionModel, normalizationMethod);
 		}
 
-		Classification<V> result = createClassification(values);
+		Classification<?, V> result = createClassification(values);
 
 		return TargetUtil.evaluateClassification(targetField, result);
 	}
@@ -292,20 +251,25 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 					throw new MissingAttributeException(numericPredictor, PMMLAttributes.NUMERICPREDICTOR_FIELD);
 				}
 
+				Number coefficient = numericPredictor.getCoefficient();
+				if(coefficient == null){
+					throw new MissingAttributeException(numericPredictor, PMMLAttributes.NUMERICPREDICTOR_COEFFICIENT);
+				}
+
 				FieldValue value = context.evaluate(name);
 
 				// "If the input value is missing, then the result evaluates to a missing value"
-				if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+				if(FieldValueUtil.isMissing(value)){
 					return null;
 				}
 
 				int exponent = numericPredictor.getExponent();
 				if(exponent != 1){
-					result.add(numericPredictor.getCoefficient(), value.asNumber(), exponent);
+					result.add(coefficient, value.asNumber(), exponent);
 				} else
 
 				{
-					result.add(numericPredictor.getCoefficient(), value.asNumber());
+					result.add(coefficient, value.asNumber());
 				}
 			}
 		} // End if
@@ -322,6 +286,11 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 					throw new MissingAttributeException(categoricalPredictor, PMMLAttributes.CATEGORICALPREDICTOR_FIELD);
 				}
 
+				Number coefficient = categoricalPredictor.getCoefficient();
+				if(coefficient == null){
+					throw new MissingAttributeException(categoricalPredictor, PMMLAttributes.CATEGORICALPREDICTOR_COEFFICIENT);
+				}
+
 				if(matchedName != null){
 
 					if((matchedName).equals(name)){
@@ -334,7 +303,7 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 				FieldValue value = context.evaluate(name);
 
 				// "If the input value is missing, then the categorical field is ignored"
-				if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+				if(FieldValueUtil.isMissing(value)){
 					matchedName = name;
 
 					continue;
@@ -344,7 +313,7 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 				if(equals){
 					matchedName = name;
 
-					result.add(categoricalPredictor.getCoefficient());
+					result.add(coefficient);
 				}
 			}
 		} // End if
@@ -356,23 +325,41 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 			for(PredictorTerm predictorTerm : predictorTerms){
 				factors.clear();
 
+				Number coefficient = predictorTerm.getCoefficient();
+				if(coefficient == null){
+					throw new MissingAttributeException(predictorTerm, PMMLAttributes.PREDICTORTERM_COEFFICIENT);
+				}
+
 				List<FieldRef> fieldRefs = predictorTerm.getFieldRefs();
 				for(FieldRef fieldRef : fieldRefs){
 					FieldValue value = ExpressionUtil.evaluate(fieldRef, context);
 
 					// "If the input value is missing, then the result evaluates to a missing value"
-					if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+					if(FieldValueUtil.isMissing(value)){
 						return null;
 					}
 
 					factors.add(value.asNumber());
 				}
 
-				result.add(predictorTerm.getCoefficient(), factors.toArray(new Number[factors.size()]));
+				if(factors.size() == 1){
+					result.add(coefficient, factors.get(0));
+				} else
+
+				if(factors.size() == 2){
+					result.add(coefficient, factors.get(0), factors.get(1));
+				} else
+
+				{
+					result.add(coefficient, factors.toArray(new Number[factors.size()]));
+				}
 			}
 		}
 
-		result.add(regressionTable.getIntercept());
+		Number intercept = regressionTable.getIntercept();
+		if(intercept != null){
+			result.add(intercept);
+		}
 
 		return result;
 	}
@@ -384,6 +371,11 @@ public class RegressionModelEvaluator extends ModelEvaluator<RegressionModel> {
 			return false;
 		}
 
-		return (regressionTable.getIntercept() == 0d);
+		Number intercept = regressionTable.getIntercept();
+		if(intercept != null && intercept.doubleValue() != 0d){
+			return false;
+		}
+
+		return true;
 	}
 }

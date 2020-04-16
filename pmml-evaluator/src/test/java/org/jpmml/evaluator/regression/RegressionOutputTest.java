@@ -18,11 +18,15 @@
  */
 package org.jpmml.evaluator.regression;
 
+import java.util.Arrays;
 import java.util.Map;
 
 import org.dmg.pmml.FieldName;
+import org.jpmml.evaluator.Configuration;
+import org.jpmml.evaluator.ConfigurationBuilder;
 import org.jpmml.evaluator.ModelEvaluator;
 import org.jpmml.evaluator.ModelEvaluatorTest;
+import org.jpmml.evaluator.OutputFilters;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -31,11 +35,19 @@ public class RegressionOutputTest extends ModelEvaluatorTest {
 
 	@Test
 	public void evaluate() throws Exception {
-		ModelEvaluator<?> evaluator = createModelEvaluator();
+		ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
+
+		Configuration configuration = configurationBuilder.build();
+
+		ModelEvaluator<?> evaluator = createModelEvaluator(configuration);
+
+		checkResultFields(Arrays.asList("result"), Arrays.asList("RawResult", "RawIntegerResult", "FinalResult", "FinalIntegerResult", "BusinessDecision"), evaluator);
 
 		Map<FieldName, ?> arguments = createArguments("input", 4d);
 
 		Map<FieldName, ?> results = evaluator.evaluate(arguments);
+
+		assertEquals(1 + 5, results.size());
 
 		assertEquals(8d, getTarget(results, "result"));
 
@@ -44,5 +56,17 @@ public class RegressionOutputTest extends ModelEvaluatorTest {
 		assertEquals(35d, getOutput(results, "FinalResult"));
 		assertEquals(35, getOutput(results, "FinalIntegerResult"));
 		assertEquals("waive", getOutput(results, "BusinessDecision"));
+
+		configurationBuilder.setOutputFilter(OutputFilters.KEEP_FINAL_RESULTS);
+
+		configuration = configurationBuilder.build();
+
+		evaluator.configure(configuration);
+
+		checkResultFields(Arrays.asList("result"), Arrays.asList("FinalResult", "FinalIntegerResult", "BusinessDecision"), evaluator);
+
+		results = evaluator.evaluate(arguments);
+
+		assertEquals(1 + 3, results.size());
 	}
 }

@@ -19,12 +19,15 @@
 package org.jpmml.evaluator;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.dmg.pmml.Array;
+import org.dmg.pmml.PMMLAttributes;
 
 public class ArrayUtil {
 
@@ -75,20 +78,40 @@ public class ArrayUtil {
 			throw new MissingAttributeException(array, PMMLAttributes.ARRAY_TYPE);
 		}
 
-		String value = array.getValue();
-
 		List<String> tokens;
 
-		switch(type){
-			case INT:
-			case REAL:
-				tokens = org.jpmml.model.ArrayUtil.parse(value, false);
-				break;
-			case STRING:
-				tokens = org.jpmml.model.ArrayUtil.parse(value, true);
-				break;
-			default:
-				throw new UnsupportedAttributeException(array, type);
+		Object value = array.getValue();
+
+		if(value instanceof String){
+			String string = (String)value;
+
+			switch(type){
+				case INT:
+				case REAL:
+				case STRING:
+					tokens = org.jpmml.model.ArrayUtil.parse(type, string);
+					break;
+				default:
+					throw new UnsupportedAttributeException(array, type);
+			}
+		} else
+
+		if(value instanceof List){
+			List<?> list = (List<?>)value;
+
+			tokens = Lists.transform(list, TypeUtil::format);
+		} else
+
+		if(value instanceof Set){
+			Set<?> set = (Set<?>)value;
+
+			tokens = set.stream()
+				.map(TypeUtil::format)
+				.collect(Collectors.toList());
+		} else
+
+		{
+			throw new InvalidElementException(array);
 		}
 
 		Integer n = array.getN();

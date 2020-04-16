@@ -21,19 +21,19 @@ package org.jpmml.evaluator.rule_set;
 import java.util.Set;
 
 import org.dmg.pmml.DataType;
+import org.dmg.pmml.rule_set.PMMLAttributes;
 import org.dmg.pmml.rule_set.SimpleRule;
 import org.jpmml.evaluator.EntityClassification;
 import org.jpmml.evaluator.HasConfidence;
 import org.jpmml.evaluator.MissingAttributeException;
-import org.jpmml.evaluator.PMMLAttributes;
 import org.jpmml.evaluator.Report;
 import org.jpmml.evaluator.TypeUtil;
 import org.jpmml.evaluator.ValueMap;
 
 abstract
-public class SimpleRuleScoreDistribution<V extends Number> extends EntityClassification<SimpleRule, V> implements HasConfidence {
+public class SimpleRuleScoreDistribution<V extends Number> extends EntityClassification<SimpleRule, Object, V> implements HasConfidence {
 
-	SimpleRuleScoreDistribution(ValueMap<String, V> confidences){
+	SimpleRuleScoreDistribution(ValueMap<Object, V> confidences){
 		super(Type.CONFIDENCE, confidences);
 	}
 
@@ -42,12 +42,12 @@ public class SimpleRuleScoreDistribution<V extends Number> extends EntityClassif
 		SimpleRule simpleRule = getEntity();
 
 		if(simpleRule != null){
-			String score = simpleRule.getScore();
+			Object score = simpleRule.getScore();
 			if(score == null){
 				throw new MissingAttributeException(simpleRule, PMMLAttributes.SIMPLERULE_SCORE);
 			}
 
-			Object result = TypeUtil.parse(dataType, score);
+			Object result = TypeUtil.parseOrCast(dataType, score);
 
 			super.setResult(result);
 
@@ -58,17 +58,17 @@ public class SimpleRuleScoreDistribution<V extends Number> extends EntityClassif
 	}
 
 	@Override
-	public Set<String> getCategories(){
+	public Set<Object> getCategories(){
 		return keySet();
 	}
 
 	@Override
-	public Double getConfidence(String category){
+	public Double getConfidence(Object category){
 		return getValue(category);
 	}
 
 	@Override
-	public Report getConfidenceReport(String category){
+	public Report getConfidenceReport(Object category){
 		return getValueReport(category);
 	}
 

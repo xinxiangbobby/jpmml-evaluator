@@ -21,25 +21,92 @@ package org.jpmml.evaluator.regression;
 import java.util.Map;
 
 import org.dmg.pmml.FieldName;
+import org.jpmml.evaluator.EvaluationContext;
+import org.jpmml.evaluator.EvaluationException;
+import org.jpmml.evaluator.FieldNameSet;
 import org.jpmml.evaluator.FieldValue;
 import org.jpmml.evaluator.FieldValueUtil;
+import org.jpmml.evaluator.FunctionNameStack;
 import org.jpmml.evaluator.ModelEvaluationContext;
 import org.jpmml.evaluator.ModelEvaluator;
 import org.jpmml.evaluator.ModelEvaluatorTest;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class TransformationDictionaryTest extends ModelEvaluatorTest {
 
 	@Test
-	public void evaluateAmPm() throws Exception {
+	public void evaluateShift() throws Exception {
 		assertValueEquals("AM", evaluate(FieldName.create("Shift"), createArguments("StartTime", 34742)));
 	}
 
 	@Test
-	public void evaluateStategroup() throws Exception {
+	public void evaluateGroup() throws Exception {
 		assertValueEquals("West", evaluate(FieldName.create("Group"), createArguments("State", "CA")));
+	}
+
+	@Test
+	public void evaluatePower() throws Exception {
+		FieldName name = FieldName.create("Power");
+
+		Map<FieldName, ?> arguments = createArguments("Value", 2d, "Exponent", 1);
+
+		assertValueEquals(2d, evaluate(name, arguments));
+
+		arguments = createArguments("Value", 2d, "Exponent", 2);
+
+		assertValueEquals(4d, evaluate(name, arguments));
+
+		arguments = createArguments("Value", 2d, "Exponent", 5);
+
+		assertValueEquals(32d, evaluate(name, arguments));
+
+		EvaluationContext.FUNCTION_GUARD_PROVIDER.set(new FunctionNameStack(4));
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(EvaluationException ee){
+			// Ignored
+		} finally {
+			EvaluationContext.FUNCTION_GUARD_PROVIDER.set(null);
+		}
+
+		assertValueEquals(32d, evaluate(name, arguments));
+
+		// XXX
+		arguments = createArguments("Value", 1d, "Exponent", 1024);
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(StackOverflowError soe){
+			// Ignored
+		}
+
+		EvaluationContext.FUNCTION_GUARD_PROVIDER.set(new FunctionNameStack(16));
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(EvaluationException ee){
+			// Ignored
+		} finally {
+			EvaluationContext.FUNCTION_GUARD_PROVIDER.set(null);
+		} // End try
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(StackOverflowError soe){
+			// Ignored
+		}
 	}
 
 	@Test
@@ -69,10 +136,105 @@ public class TransformationDictionaryTest extends ModelEvaluatorTest {
 		assertValueEquals(null, evaluate(name, createArguments("Value", 3, "Modifier", true)));
 	}
 
+	@Test
+	public void evaluateSelfRef() throws Exception {
+		FieldName name = FieldName.create("SelfRef");
+
+		Map<FieldName, ?> arguments = createArguments("Value", 1, "Modifier", false);
+
+		assertValueEquals(1d, evaluate(name, arguments));
+
+		arguments = createArguments("Value", 1, "Modifier", true);
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(StackOverflowError soe){
+			// Ignored
+		}
+
+		EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(new FieldNameSet());
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(EvaluationException ee){
+			// Ignored
+		} finally {
+			EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(null);
+		} // End try
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(StackOverflowError soe){
+			// Ignored
+		}
+	}
+
+	@Test
+	public void evaluateRef() throws Exception {
+		FieldName name = FieldName.create("Ref");
+
+		Map<FieldName, ?> arguments = createArguments("Value", 1);
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(StackOverflowError soe){
+			// Ignored
+		}
+
+		EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(new FieldNameSet());
+
+		try {
+			evaluate(name, arguments);
+		} catch(EvaluationException ee){
+			// Ignored
+		} finally {
+			EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(null);
+		} // End try
+
+		try {
+			evaluate(name, arguments);
+
+			fail();
+		} catch(StackOverflowError soe){
+			// Ignored
+		}
+	}
+
+	@Test
+	public void evaluateChain() throws Exception {
+		Map<FieldName, ?> arguments = createArguments("Value", 1);
+
+		EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(new FieldNameSet(2));
+
+		try {
+			assertValueEquals(1d, evaluate(FieldName.create("StageOne"), arguments));
+
+			try {
+				evaluate(FieldName.create("StageThree"), arguments);
+
+				fail();
+			} catch(EvaluationException ee){
+				// Ignored
+			}
+		} finally {
+			EvaluationContext.DERIVEDFIELD_GUARD_PROVIDER.set(null);
+		}
+
+		assertValueEquals(1d, evaluate(FieldName.create("StageThree"), arguments));
+	}
+
 	private FieldValue evaluate(FieldName name, Map<FieldName, ?> arguments) throws Exception {
 		ModelEvaluator<?> evaluator = createModelEvaluator();
 
-		ModelEvaluationContext context = new ModelEvaluationContext(evaluator);
+		ModelEvaluationContext context = evaluator.createEvaluationContext();
 		context.setArguments(arguments);
 
 		return context.evaluate(name);

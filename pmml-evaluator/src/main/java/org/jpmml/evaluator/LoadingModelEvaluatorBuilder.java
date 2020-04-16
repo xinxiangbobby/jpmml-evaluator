@@ -34,12 +34,13 @@ import javax.xml.validation.Schema;
 import org.dmg.pmml.Model;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.Visitor;
+import org.jpmml.evaluator.visitors.DefaultModelEvaluatorBattery;
 import org.jpmml.model.JAXBUtil;
 import org.jpmml.model.SAXUtil;
-import org.jpmml.model.VisitorBattery;
 import org.jpmml.model.filters.ImportFilter;
 import org.jpmml.model.visitors.LocatorNullifier;
 import org.jpmml.model.visitors.LocatorTransformer;
+import org.jpmml.model.visitors.VisitorBattery;
 import org.xml.sax.SAXException;
 import org.xml.sax.XMLFilter;
 
@@ -53,7 +54,7 @@ public class LoadingModelEvaluatorBuilder extends ModelEvaluatorBuilder {
 
 	private boolean locatable = false;
 
-	private VisitorBattery visitors = null;
+	private VisitorBattery visitors = new DefaultModelEvaluatorBattery();
 
 
 	public LoadingModelEvaluatorBuilder(){

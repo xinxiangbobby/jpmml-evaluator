@@ -34,9 +34,7 @@ import org.dmg.pmml.ComparisonMeasure;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.Distance;
 import org.dmg.pmml.FieldName;
-import org.dmg.pmml.MathContext;
 import org.dmg.pmml.Measure;
-import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.PMML;
 import org.dmg.pmml.Similarity;
 import org.dmg.pmml.Target;
@@ -46,6 +44,8 @@ import org.dmg.pmml.clustering.Cluster;
 import org.dmg.pmml.clustering.ClusteringField;
 import org.dmg.pmml.clustering.ClusteringModel;
 import org.dmg.pmml.clustering.MissingValueWeights;
+import org.dmg.pmml.clustering.PMMLAttributes;
+import org.dmg.pmml.clustering.PMMLElements;
 import org.jpmml.evaluator.ArrayUtil;
 import org.jpmml.evaluator.CacheUtil;
 import org.jpmml.evaluator.Classification;
@@ -54,17 +54,12 @@ import org.jpmml.evaluator.EvaluationContext;
 import org.jpmml.evaluator.FieldValue;
 import org.jpmml.evaluator.FieldValueUtil;
 import org.jpmml.evaluator.HasEntityRegistry;
-import org.jpmml.evaluator.InvalidAttributeException;
 import org.jpmml.evaluator.InvalidElementException;
 import org.jpmml.evaluator.MeasureUtil;
 import org.jpmml.evaluator.MisplacedElementException;
 import org.jpmml.evaluator.MissingAttributeException;
 import org.jpmml.evaluator.MissingElementException;
-import org.jpmml.evaluator.ModelEvaluationContext;
 import org.jpmml.evaluator.ModelEvaluator;
-import org.jpmml.evaluator.OutputUtil;
-import org.jpmml.evaluator.PMMLAttributes;
-import org.jpmml.evaluator.PMMLElements;
 import org.jpmml.evaluator.PMMLUtil;
 import org.jpmml.evaluator.TypeInfos;
 import org.jpmml.evaluator.UnsupportedAttributeException;
@@ -142,43 +137,7 @@ public class ClusteringModelEvaluator extends ModelEvaluator<ClusteringModel> im
 	}
 
 	@Override
-	public Map<FieldName, ?> evaluate(ModelEvaluationContext context){
-		ClusteringModel clusteringModel = ensureScorableModel();
-
-		ValueFactory<?> valueFactory;
-
-		MathContext mathContext = clusteringModel.getMathContext();
-		switch(mathContext){
-			case FLOAT:
-			case DOUBLE:
-				valueFactory = ensureValueFactory();
-				break;
-			default:
-				throw new UnsupportedAttributeException(clusteringModel, mathContext);
-		}
-
-		Map<FieldName, ? extends ClusterAffinityDistribution<?>> predictions;
-
-		MiningFunction miningFunction = clusteringModel.getMiningFunction();
-		switch(miningFunction){
-			case CLUSTERING:
-				predictions = evaluateClustering(valueFactory, context);
-				break;
-			case ASSOCIATION_RULES:
-			case SEQUENCES:
-			case CLASSIFICATION:
-			case REGRESSION:
-			case TIME_SERIES:
-			case MIXED:
-				throw new InvalidAttributeException(clusteringModel, miningFunction);
-			default:
-				throw new UnsupportedAttributeException(clusteringModel, miningFunction);
-		}
-
-		return OutputUtil.evaluate(predictions, context);
-	}
-
-	private <V extends Number> Map<FieldName, ClusterAffinityDistribution<V>> evaluateClustering(ValueFactory<V> valueFactory, EvaluationContext context){
+	protected <V extends Number> Map<FieldName, ClusterAffinityDistribution<V>> evaluateClustering(ValueFactory<V> valueFactory, EvaluationContext context){
 		ClusteringModel clusteringModel = getModel();
 
 		ComparisonMeasure comparisonMeasure = clusteringModel.getComparisonMeasure();
@@ -219,7 +178,7 @@ public class ClusteringModelEvaluator extends ModelEvaluator<ClusteringModel> im
 		// "For clustering models, the identifier of the winning cluster is returned as the predictedValue"
 		result.computeResult(DataType.STRING);
 
-		return Collections.singletonMap(getTargetFieldName(), result);
+		return Collections.singletonMap(getTargetName(), result);
 	}
 
 	private <V extends Number> ClusterAffinityDistribution<V> evaluateSimilarity(ValueFactory<V> valueFactory, ComparisonMeasure comparisonMeasure, List<ClusteringField> clusteringFields, List<FieldValue> values){

@@ -22,6 +22,7 @@ import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.MiningSchema;
 import org.dmg.pmml.ScoreDistribution;
 import org.dmg.pmml.True;
+import org.dmg.pmml.tree.ComplexNode;
 import org.dmg.pmml.tree.Node;
 import org.dmg.pmml.tree.TreeModel;
 import org.junit.Test;
@@ -33,8 +34,7 @@ public class ScoreDistributionCleanerTest {
 
 	@Test
 	public void clean(){
-		Node node = new Node()
-			.setPredicate(new True())
+		Node node = new ComplexNode(True.INSTANCE)
 			.setScore("1")
 			.addScoreDistributions(new ScoreDistribution("0", 0), new ScoreDistribution("1", 100));
 

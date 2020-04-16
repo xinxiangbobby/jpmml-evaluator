@@ -35,7 +35,7 @@ public class CategoricalValue extends DiscreteValue {
 	}
 
 	@Override
-	public int compareToString(String string){
+	public int compareToValue(Object value){
 		throw new EvaluationException("Categorical value cannot be used in comparison operations");
 	}
 
@@ -45,27 +45,37 @@ public class CategoricalValue extends DiscreteValue {
 	}
 
 	static
-	public CategoricalValue create(DataType dataType, Object value){
+	public FieldValue create(DataType dataType, Object value){
 
 		if(value instanceof Collection){
-			return new CategoricalValue(dataType, value);
+			return new CollectionValue(dataType, OpType.CATEGORICAL, (Collection<?>)value);
 		}
 
 		switch(dataType){
 			case STRING:
-				return new CategoricalString((String)value);
+				return new CategoricalString(value);
 			case BOOLEAN:
-				return new CategoricalBoolean((Boolean)value);
+				return new CategoricalBoolean(value);
 			default:
 				return new CategoricalValue(dataType, value);
 		}
 	}
 
 	static
-	private class CategoricalString extends CategoricalValue implements Scalar {
+	private class CategoricalString extends CategoricalValue {
 
-		CategoricalString(String value){
+		CategoricalString(Object value){
 			super(DataType.STRING, value);
+		}
+
+		@Override
+		public boolean equalsValue(Object value){
+
+			if(value instanceof String){
+				return (asString()).equals(value);
+			}
+
+			return super.equalsValue(value);
 		}
 
 		@Override
@@ -75,36 +85,54 @@ public class CategoricalValue extends DiscreteValue {
 	}
 
 	static
-	private class CategoricalBoolean extends CategoricalValue implements Scalar {
+	private class CategoricalBoolean extends CategoricalValue {
 
-		CategoricalBoolean(Boolean value){
+		CategoricalBoolean(Object value){
 			super(DataType.BOOLEAN, value);
 		}
 
 		@Override
-		public int compareToString(String string){
+		public int compareToValue(Object value){
+
+			if(value instanceof Boolean){
+				return Boolean.compare(asBoolean(), (Boolean)value);
+			}
+
 			Number number;
 
 			try {
-				number = (Number)TypeUtil.parse(DataType.DOUBLE, string);
+				number = (Number)TypeUtil.parseOrCast(DataType.DOUBLE, value);
 			} catch(NumberFormatException nfe){
-				throw new TypeCheckException(DataType.DOUBLE, string);
+				throw nfe;
+			} catch(TypeCheckException tce){
+				throw new TypeCheckException(DataType.BOOLEAN, value);
 			}
 
-			return ((Comparable)TypeUtil.cast(DataType.DOUBLE, asBoolean())).compareTo(number);
+			return ((Comparable)asDouble()).compareTo(number);
 		}
 
 		@Override
 		public int compareToValue(FieldValue value){
-			Number number;
 
-			try {
-				number = (Number)TypeUtil.cast(DataType.DOUBLE, value.asNumber());
-			} catch(TypeCheckException tce){
-				throw new TypeCheckException(DataType.DOUBLE, value.getValue());
+			if(value instanceof ScalarValue){
+				ScalarValue that = (ScalarValue)value;
+
+				if((DataType.BOOLEAN).equals(that.getDataType())){
+					return Boolean.compare(this.asBoolean(), that.asBoolean());
+				}
 			}
 
-			return ((Comparable)TypeUtil.cast(DataType.DOUBLE, asBoolean())).compareTo(number);
+			return compareToValue(value.getValue());
+		}
+
+		@Override
+		public boolean equalsValue(Object value){
+
+			if(value instanceof Boolean){
+				return (asBoolean()).equals(value);
+			}
+
+			return super.equalsValue(value);
 		}
 
 		@Override

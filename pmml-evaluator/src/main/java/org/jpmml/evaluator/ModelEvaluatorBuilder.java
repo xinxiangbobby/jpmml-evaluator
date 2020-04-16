@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import com.google.common.collect.Iterables;
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.MiningSchema;
 import org.dmg.pmml.Model;
@@ -37,9 +36,9 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 
 	private ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
 
-	private java.util.function.Function<FieldName, FieldName> inputMapper = null;
+	private InputMapper inputMapper = null;
 
-	private java.util.function.Function<FieldName, FieldName> resultMapper = null;
+	private ResultMapper resultMapper = null;
 
 
 	protected ModelEvaluatorBuilder(){
@@ -108,32 +107,13 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		ModelEvaluator<?> modelEvaluator = modelEvaluatorFactory.newModelEvaluator(pmml, model);
 		modelEvaluator.configure(configuration);
 
+		InputMapper inputMapper = getInputMapper();
+		ResultMapper resultMapper = getResultMapper();
+
+		modelEvaluator.setInputMapper(inputMapper);
+		modelEvaluator.setResultMapper(resultMapper);
+
 		checkSchema(modelEvaluator);
-
-		java.util.function.Function<FieldName, FieldName> inputMapper = getInputMapper();
-		java.util.function.Function<FieldName, FieldName> resultMapper = getResultMapper();
-
-		if(inputMapper != null){
-			Iterable<InputField> inputFields = modelEvaluator.getInputFields();
-
-			if(modelEvaluator instanceof HasGroupFields){
-				HasGroupFields hasGroupFields = (HasGroupFields)modelEvaluator;
-
-				inputFields = Iterables.concat(inputFields, hasGroupFields.getGroupFields());
-			}
-
-			for(InputField inputField : inputFields){
-				inputField.setName(inputMapper.apply(inputField.getName()));
-			}
-		} // End if
-
-		if(resultMapper != null){
-			Iterable<ResultField> resultFields = Iterables.concat(modelEvaluator.getTargetFields(), modelEvaluator.getOutputFields());
-
-			for(ResultField resultField : resultFields){
-				resultField.setName(resultMapper.apply(resultField.getName()));
-			}
-		}
 
 		return modelEvaluator;
 	}
@@ -216,21 +196,63 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		return this;
 	}
 
-	public java.util.function.Function<FieldName, FieldName> getInputMapper(){
+	public OutputFilter getOutputFilter(){
+		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
+
+		return configurationBuilder.getOutputFilter();
+	}
+
+	public ModelEvaluatorBuilder setOutputFilter(OutputFilter outputFilter){
+		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
+
+		configurationBuilder.setOutputFilter(outputFilter);
+
+		return this;
+	}
+
+	public SymbolTable<FieldName> getDerivedFieldGuard(){
+		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
+
+		return configurationBuilder.getDerivedFieldGuard();
+	}
+
+	public ModelEvaluatorBuilder setDerivedFieldGuard(SymbolTable<FieldName> derivedFieldGuard){
+		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
+
+		configurationBuilder.setDerivedFieldGuard(derivedFieldGuard);
+
+		return this;
+	}
+
+	public SymbolTable<String> getFunctionGuard(){
+		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
+
+		return configurationBuilder.getFunctionGuard();
+	}
+
+	public ModelEvaluatorBuilder setFunctionGuard(SymbolTable<String> functionGuard){
+		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
+
+		configurationBuilder.setFunctionGuard(functionGuard);
+
+		return this;
+	}
+
+	public InputMapper getInputMapper(){
 		return this.inputMapper;
 	}
 
-	public ModelEvaluatorBuilder setInputMapper(java.util.function.Function<FieldName, FieldName> inputMapper){
+	public ModelEvaluatorBuilder setInputMapper(InputMapper inputMapper){
 		this.inputMapper = inputMapper;
 
 		return this;
 	}
 
-	public java.util.function.Function<FieldName, FieldName> getResultMapper(){
+	public ResultMapper getResultMapper(){
 		return this.resultMapper;
 	}
 
-	public ModelEvaluatorBuilder setResultMapper(java.util.function.Function<FieldName, FieldName> resultMapper){
+	public ModelEvaluatorBuilder setResultMapper(ResultMapper resultMapper){
 		this.resultMapper = resultMapper;
 
 		return this;

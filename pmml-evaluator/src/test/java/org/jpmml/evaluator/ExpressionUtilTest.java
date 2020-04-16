@@ -42,6 +42,7 @@ import org.dmg.pmml.MapValues;
 import org.dmg.pmml.NormContinuous;
 import org.dmg.pmml.NormDiscrete;
 import org.dmg.pmml.OpType;
+import org.dmg.pmml.PMMLFunctions;
 import org.dmg.pmml.TextIndex;
 import org.dmg.pmml.TextIndex.CountHits;
 import org.dmg.pmml.TextIndexNormalization;
@@ -55,28 +56,61 @@ public class ExpressionUtilTest {
 
 	@Test
 	public void evaluateConstant(){
-		Constant constant = new Constant("3");
+		Constant emptyString = new Constant()
+			.setDataType(DataType.STRING);
 
-		assertEquals(DataType.INTEGER, ExpressionUtil.getConstantDataType(constant));
+		assertEquals("", evaluate(emptyString));
 
-		assertEquals(3, evaluate(constant));
+		emptyString.setMissing(true);
+
+		assertEquals(null, evaluate(emptyString));
 
 		Constant stringThree = new Constant("3")
 			.setDataType(DataType.STRING);
 
-		assertEquals(DataType.STRING, ExpressionUtil.getConstantDataType(stringThree));
-
 		assertEquals("3", evaluate(stringThree));
+
+		stringThree.setMissing(true);
+
+		assertEquals(null, evaluate(stringThree));
 
 		Constant integerThree = new Constant("3")
 			.setDataType(DataType.INTEGER);
 
 		assertEquals(3, evaluate(integerThree));
 
+		integerThree.setMissing(true);
+
+		assertEquals(null, evaluate(integerThree));
+
 		Constant floatThree = new Constant("3")
 			.setDataType(DataType.FLOAT);
 
 		assertEquals(3f, evaluate(floatThree));
+
+		floatThree.setMissing(true);
+
+		assertEquals(null, evaluate(floatThree));
+
+		Constant doubleThree = new Constant("3")
+			.setDataType(DataType.DOUBLE);
+
+		assertEquals(3d, evaluate(doubleThree));
+
+		doubleThree.setMissing(true);
+
+		assertEquals(null, evaluate(doubleThree));
+	}
+
+	@Test
+	public void evaluateConstantNaN(){
+		Constant constant = new Constant("NaN");
+
+		assertEquals(Double.NaN, evaluate(constant));
+
+		constant.setDataType(DataType.FLOAT);
+
+		assertEquals(Float.NaN, evaluate(constant));
 	}
 
 	@Test
@@ -157,9 +191,8 @@ public class ExpressionUtilTest {
 			Arrays.asList("1", "one")
 		);
 
-		MapValues mapValues = new MapValues("data:output")
-			.addFieldColumnPairs(new FieldColumnPair(name, "data:input"))
-			.setInlineTable(createInlineTable(rows, Arrays.asList("data:input", "data:output")));
+		MapValues mapValues = new MapValues("data:output", null, createInlineTable(rows, Arrays.asList("data:input", "data:output")))
+			.addFieldColumnPairs(new FieldColumnPair(name, "data:input"));
 
 		assertEquals("zero", evaluate(mapValues, name, "0"));
 		assertEquals("one", evaluate(mapValues, name, "1"));
@@ -180,19 +213,17 @@ public class ExpressionUtilTest {
 	public void evaluateTextIndex(){
 		FieldName name = FieldName.create("x");
 
-		TextIndex textIndex = new TextIndex(name)
-			.setWordSeparatorCharacterRE("[\\s\\-]")
-			.setExpression(new Constant("user friendly"));
+		TextIndex textIndex = new TextIndex(name, new Constant("user friendly"))
+			.setWordSeparatorCharacterRE("[\\s\\-]");
 
-		String text;
+		assertEquals(null, evaluate(textIndex, name, null));
 
 		assertEquals(1, evaluate(textIndex, name, "user friendly"));
 		assertEquals(1, evaluate(textIndex, name, "user-friendly"));
 
-		textIndex = new TextIndex(name)
-			.setExpression(new Constant("brown fox"));
+		textIndex = new TextIndex(name, new Constant("brown fox"));
 
-		text = "The quick browny foxy jumps over the lazy dog. The brown fox runs away and to be with another brown foxy.";
+		String text = "The quick browny foxy jumps over the lazy dog. The brown fox runs away and to be with another brown foxy.";
 
 		textIndex.setMaxLevenshteinDistance(0);
 
@@ -206,9 +237,8 @@ public class ExpressionUtilTest {
 
 		assertEquals(3, evaluate(textIndex, name, text));
 
-		textIndex = new TextIndex(name)
-			.setMaxLevenshteinDistance(1)
-			.setExpression(new Constant("dog"));
+		textIndex = new TextIndex(name, new Constant("dog"))
+			.setMaxLevenshteinDistance(1);
 
 		text = "I have a doog. My dog is white. The doog is friendly.";
 
@@ -220,9 +250,8 @@ public class ExpressionUtilTest {
 
 		assertEquals(1, evaluate(textIndex, name, text));
 
-		textIndex = new TextIndex(name)
-			.setCaseSensitive(false)
-			.setExpression(new Constant("sun"));
+		textIndex = new TextIndex(name, new Constant("sun"))
+			.setCaseSensitive(false);
 
 		text = "The Sun was setting while the captain's son reached the bounty island, minutes after their ship had sunk to the bottom of the ocean.";
 
@@ -259,11 +288,10 @@ public class ExpressionUtilTest {
 
 		stepTwo.setInlineTable(createInlineTable(cells, stepTwo));
 
-		TextIndex textIndex = new TextIndex(name)
+		TextIndex textIndex = new TextIndex(name, new Constant("ui_good"))
 			.setLocalTermWeights(TextIndex.LocalTermWeights.BINARY)
 			.setCaseSensitive(false)
-			.addTextIndexNormalizations(stepOne, stepTwo)
-			.setExpression(new Constant("ui_good"));
+			.addTextIndexNormalizations(stepOne, stepTwo);
 
 		assertEquals(1, evaluate(textIndex, name, "Testing the app for a few days convinced me the interfaces are excellent!"));
 	}
@@ -272,7 +300,7 @@ public class ExpressionUtilTest {
 	public void evaluateApply(){
 		FieldName name = FieldName.create("x");
 
-		Apply apply = new Apply("/")
+		Apply apply = new Apply(PMMLFunctions.DIVIDE)
 			.addExpressions(new FieldRef(name), new Constant("0"));
 
 		assertEquals(null, evaluate(apply, name, null));
@@ -314,10 +342,10 @@ public class ExpressionUtilTest {
 	public void evaluateApplyCondition(){
 		FieldName name = FieldName.create("x");
 
-		Apply condition = new Apply("isNotMissing")
+		Apply condition = new Apply(PMMLFunctions.ISNOTMISSING)
 			.addExpressions(new FieldRef(name));
 
-		Apply apply = new Apply("if")
+		Apply apply = new Apply(PMMLFunctions.IF)
 			.addExpressions(condition);
 
 		try {
@@ -328,7 +356,7 @@ public class ExpressionUtilTest {
 			// Ignored
 		}
 
-		Expression thenPart = new Apply("abs")
+		Expression thenPart = new Apply(PMMLFunctions.ABS)
 			.addExpressions(new FieldRef(name));
 
 		apply.addExpressions(thenPart);

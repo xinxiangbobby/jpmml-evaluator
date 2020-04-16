@@ -22,6 +22,7 @@ import org.dmg.pmml.False;
 import org.dmg.pmml.MiningFunction;
 import org.dmg.pmml.MiningSchema;
 import org.dmg.pmml.PMML;
+import org.dmg.pmml.tree.LeafNode;
 import org.dmg.pmml.tree.Node;
 import org.dmg.pmml.tree.TreeModel;
 import org.jpmml.model.SerializationUtil;
@@ -37,7 +38,7 @@ public class ModelEvaluatorBuilderTest {
 		ModelEvaluatorBuilder modelEvaluatorBuilder = createModelEvaluatorBuilder();
 
 		ModelEvaluatorFactory modelEvaluatorFactory = ModelEvaluatorFactory.newInstance();
-		ValueFactoryFactory valueFactoryFactory = ReportingValueFactoryFactory.newInstance();
+		ValueFactoryFactory valueFactoryFactory = ValueFactoryFactory.newInstance();
 
 		modelEvaluatorBuilder
 			.setModelEvaluatorFactory(modelEvaluatorFactory)
@@ -57,7 +58,7 @@ public class ModelEvaluatorBuilderTest {
 		ModelEvaluatorBuilder modelEvaluatorBuilder = createModelEvaluatorBuilder();
 
 		ModelEvaluatorFactory modelEvaluatorFactory = ModelEvaluatorFactory.newInstance();
-		ValueFactoryFactory valueFactoryFactory = ReportingValueFactoryFactory.newInstance();
+		ValueFactoryFactory valueFactoryFactory = ValueFactoryFactory.newInstance();
 
 		modelEvaluatorBuilder
 			.setModelEvaluatorFactory(modelEvaluatorFactory)
@@ -73,8 +74,7 @@ public class ModelEvaluatorBuilderTest {
 
 	static
 	private ModelEvaluatorBuilder createModelEvaluatorBuilder(){
-		Node root = new Node()
-			.setPredicate(new False());
+		Node root = new LeafNode(null, False.INSTANCE);
 
 		TreeModel treeModel = new TreeModel(MiningFunction.REGRESSION, new MiningSchema(), root);
 

@@ -33,6 +33,20 @@ import static org.junit.Assert.fail;
 public class TypeUtilTest {
 
 	@Test
+	public void format(){
+		assertEquals("1", TypeUtil.format("1"));
+
+		assertEquals("1", TypeUtil.format((byte)1));
+		assertEquals("1", TypeUtil.format((short)1));
+		assertEquals("1", TypeUtil.format(1));
+		assertEquals("1", TypeUtil.format(1l));
+		assertEquals("1.0", TypeUtil.format(1f)); // XXX
+		assertEquals("1.0", TypeUtil.format(1.0f));
+		assertEquals("1.0", TypeUtil.format(1d)); // XXX
+		assertEquals("1.0", TypeUtil.format(1.0d));
+	}
+
+	@Test
 	public void parseInteger(){
 		assertEquals(0, TypeUtil.parse(DataType.INTEGER, "-0"));
 		assertEquals(0, TypeUtil.parse(DataType.INTEGER, "0"));
@@ -51,7 +65,7 @@ public class TypeUtilTest {
 			TypeUtil.parse(DataType.INTEGER, Long.toString(Integer.MIN_VALUE - 1l));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(IllegalArgumentException iae){
 			// Ignored
 		}
 
@@ -59,7 +73,7 @@ public class TypeUtilTest {
 			TypeUtil.parse(DataType.INTEGER, Double.toString(Integer.MIN_VALUE - 1d));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(IllegalArgumentException iae){
 			// Ignored
 		}
 
@@ -69,7 +83,7 @@ public class TypeUtilTest {
 			TypeUtil.parse(DataType.INTEGER, Long.toString(Integer.MAX_VALUE + 1l));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(IllegalArgumentException iae){
 			// Ignored
 		}
 
@@ -77,7 +91,7 @@ public class TypeUtilTest {
 			TypeUtil.parse(DataType.INTEGER, Double.toString(Integer.MAX_VALUE + 1d));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(IllegalArgumentException iae){
 			// Ignored
 		}
 	}
@@ -117,17 +131,6 @@ public class TypeUtilTest {
 
 	@Test
 	public void cast(){
-		assertEquals("1", TypeUtil.cast(DataType.STRING, "1"));
-
-		assertEquals("1", TypeUtil.cast(DataType.STRING, (byte)1));
-		assertEquals("1", TypeUtil.cast(DataType.STRING, (short)1));
-		assertEquals("1", TypeUtil.cast(DataType.STRING, 1));
-		assertEquals("1", TypeUtil.cast(DataType.STRING, 1l));
-		assertEquals("1.0", TypeUtil.cast(DataType.STRING, 1f)); // XXX
-		assertEquals("1.0", TypeUtil.cast(DataType.STRING, 1.0f));
-		assertEquals("1.0", TypeUtil.cast(DataType.STRING, 1d)); // XXX
-		assertEquals("1.0", TypeUtil.cast(DataType.STRING, 1.0d));
-
 		assertEquals(1, TypeUtil.cast(DataType.INTEGER, (byte)1));
 		assertEquals(1, TypeUtil.cast(DataType.INTEGER, (short)1));
 		assertEquals(1, TypeUtil.cast(DataType.INTEGER, 1));
@@ -157,7 +160,7 @@ public class TypeUtilTest {
 			TypeUtil.cast(DataType.INTEGER, Long.valueOf(Integer.MIN_VALUE - 1l));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(TypeCheckException tce){
 			// Ignored
 		}
 
@@ -165,7 +168,7 @@ public class TypeUtilTest {
 			TypeUtil.cast(DataType.INTEGER, Long.valueOf(Integer.MAX_VALUE + 1l));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(TypeCheckException tce){
 			// Ignored
 		}
 
@@ -195,7 +198,7 @@ public class TypeUtilTest {
 			TypeUtil.cast(DataType.INTEGER, Double.valueOf(Integer.MIN_VALUE - 1d));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(TypeCheckException tce){
 			// Ignored
 		}
 
@@ -203,7 +206,7 @@ public class TypeUtilTest {
 			TypeUtil.cast(DataType.INTEGER, Double.valueOf(Integer.MAX_VALUE + 1d));
 
 			fail();
-		} catch(EvaluationException ee){
+		} catch(TypeCheckException tce){
 			// Ignored
 		}
 	}
@@ -298,6 +301,10 @@ public class TypeUtilTest {
 	public void parseSecondsSinceMidnight(){
 		SecondsSinceMidnight noon = (SecondsSinceMidnight)TypeUtil.parse(DataType.TIME_SECONDS, "12:00:00");
 
+		assertEquals(12L * 60 * 60, noon.longValue());
+
+		assertEquals("43200", TypeUtil.format(noon));
+
 		assertEquals(DataType.TIME_SECONDS, TypeUtil.getDataType(noon));
 
 		assertEquals(0L, countSecondsSinceMidnight("0:00:00"));
@@ -387,12 +394,12 @@ public class TypeUtilTest {
 		assertEquals(DataType.STRING, TypeUtil.getConstantDataType("1E0"));
 		assertEquals(DataType.STRING, TypeUtil.getConstantDataType("1X"));
 
-		assertEquals(DataType.FLOAT, TypeUtil.getConstantDataType("-1.0"));
-		assertEquals(DataType.FLOAT, TypeUtil.getConstantDataType("1.0"));
-		assertEquals(DataType.FLOAT, TypeUtil.getConstantDataType("+1.0"));
-		assertEquals(DataType.FLOAT, TypeUtil.getConstantDataType("1.0E-1"));
-		assertEquals(DataType.FLOAT, TypeUtil.getConstantDataType("1.0E1"));
-		assertEquals(DataType.FLOAT, TypeUtil.getConstantDataType("1.0E+1"));
+		assertEquals(DataType.DOUBLE, TypeUtil.getConstantDataType("-1.0"));
+		assertEquals(DataType.DOUBLE, TypeUtil.getConstantDataType("1.0"));
+		assertEquals(DataType.DOUBLE, TypeUtil.getConstantDataType("+1.0"));
+		assertEquals(DataType.DOUBLE, TypeUtil.getConstantDataType("1.0E-1"));
+		assertEquals(DataType.DOUBLE, TypeUtil.getConstantDataType("1.0E1"));
+		assertEquals(DataType.DOUBLE, TypeUtil.getConstantDataType("1.0E+1"));
 		assertEquals(DataType.STRING, TypeUtil.getConstantDataType("1.0X"));
 	}
 

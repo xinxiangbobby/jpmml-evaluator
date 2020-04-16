@@ -34,16 +34,24 @@ public class FunctionTest {
 
 	@Test
 	public void evaluateArithmeticFunctions(){
-		assertEquals(4d, evaluate(Functions.PLUS, 1d, 3d));
-		assertEquals(-2d, evaluate(Functions.MINUS, 1d, 3d));
+		assertEquals(4, evaluate(Functions.ADD, 1, 3));
+		assertEquals(-2, evaluate(Functions.SUBTRACT, 1, 3));
+		assertEquals(3d, evaluate(Functions.MULTIPLY, 1, 3));
+		assertEquals(0, evaluate(Functions.DIVIDE, 1, 3));
+
+		assertEquals(null, evaluate(Functions.ADD, 1, null));
+		assertEquals(null, evaluate(Functions.ADD, null, 1));
+
+		assertEquals(4d, evaluate(Functions.ADD, 1d, 3d));
+		assertEquals(-2d, evaluate(Functions.SUBTRACT, 1d, 3d));
 		assertEquals(3d, evaluate(Functions.MULTIPLY, 1d, 3d));
 		assertEquals((1d / 3d), evaluate(Functions.DIVIDE, 1d, 3d));
 
-		assertEquals(null, evaluate(Functions.PLUS, 1d, null));
-		assertEquals(null, evaluate(Functions.PLUS, null, 1d));
+		assertEquals(null, evaluate(Functions.ADD, 1d, null));
+		assertEquals(null, evaluate(Functions.ADD, null, 1d));
 
 		try {
-			evaluate(Functions.PLUS, true, true);
+			evaluate(Functions.ADD, true, true);
 
 			fail();
 		} catch(EvaluationException ee){
@@ -65,12 +73,27 @@ public class FunctionTest {
 
 		assertEquals(0, evaluate(Functions.MODULO, Integer.MIN_VALUE, -1));
 
+		assertEquals(2, evaluate(Functions.MODULO, 11, 3));
+		assertEquals(-5, evaluate(Functions.MODULO, 9, -7));
+		assertEquals(-4, evaluate(Functions.MODULO, -4, -9));
+		assertEquals(0.3d, evaluate(Functions.MODULO, -17.2d, 0.5d), 1e-13);
+
 		assertEquals(1, evaluate(Functions.MODULO, 10, 3));
-		assertEquals(-1, evaluate(Functions.MODULO, -10, 3));
+		assertEquals(-2, evaluate(Functions.MODULO, 10, -3));
+		assertEquals(2, evaluate(Functions.MODULO, -10, 3));
+		assertEquals(-1, evaluate(Functions.MODULO, -10, -3));
+
 		assertEquals(0, evaluate(Functions.MODULO, 6, 2));
-		assertEquals(0, evaluate(Functions.MODULO, 6, -2));
-		assertEquals((4.5d % 1.2d), evaluate(Functions.MODULO, 4.5d, 1.2d));
-		assertEquals(3.0e0, evaluate(Functions.MODULO, 1.23e2, 0.6e1));
+		assertEquals(-0, evaluate(Functions.MODULO, 6, -2));
+		assertEquals(0, evaluate(Functions.MODULO, -6, 2));
+		assertEquals(-0, evaluate(Functions.MODULO, -6, -2));
+
+		assertEquals(0.9d, evaluate(Functions.MODULO, 4.5d, 1.2d), 1e-13);
+		assertEquals(-0.3d, evaluate(Functions.MODULO, 4.5d, -1.2d), 1e-13);
+		assertEquals(0.3d, evaluate(Functions.MODULO, -4.5d, 1.2d), 1e-13);
+		assertEquals(-0.9d, evaluate(Functions.MODULO, -4.5d, -1.2d), 1e-13);
+
+		assertEquals(3.0e0d, evaluate(Functions.MODULO, 1.23e2d, 0.6e1d), 1e-13);
 	}
 
 	@Test
@@ -153,20 +176,47 @@ public class FunctionTest {
 		assertEquals(1, evaluate(Functions.FLOOR, 1));
 		assertEquals(1, evaluate(Functions.CEIL, 1));
 
-		assertEquals(1f, evaluate(Functions.FLOOR, 1.99f));
-		assertEquals(2f, evaluate(Functions.ROUND, 1.99f));
+		assertEquals(1, evaluate(Functions.FLOOR, 1.99f));
+		assertEquals(2, evaluate(Functions.ROUND, 1.99f));
 
-		assertEquals(1f, evaluate(Functions.CEIL, 0.01f));
-		assertEquals(0f, evaluate(Functions.ROUND, 0.01f));
+		assertEquals(1, evaluate(Functions.CEIL, 0.01f));
+		assertEquals(0, evaluate(Functions.ROUND, 0.01f));
 	}
 
 	@Test
 	public void evaluateValueFunctions(){
-		assertEquals(true, evaluate(Functions.IS_MISSING, (String)null));
-		assertEquals(false, evaluate(Functions.IS_MISSING, "value"));
+		ScalarValue value = (ScalarValue)FieldValues.MISSING_VALUE;
 
-		assertEquals(true, evaluate(Functions.IS_NOT_MISSING, "value"));
-		assertEquals(false, evaluate(Functions.IS_NOT_MISSING, (String)null));
+		assertEquals(true, evaluate(Functions.IS_MISSING, value));
+		assertEquals(false, evaluate(Functions.IS_NOT_MISSING, value));
+		assertEquals(false, evaluate(Functions.IS_VALID, value));
+		assertEquals(false, evaluate(Functions.IS_NOT_VALID, value));
+
+		value = (ScalarValue)FieldValue.create(TypeInfos.CATEGORICAL_STRING, "value");
+
+		value.setValid(true);
+
+		assertEquals(false, evaluate(Functions.IS_MISSING, value));
+		assertEquals(true, evaluate(Functions.IS_NOT_MISSING, value));
+		assertEquals(true, evaluate(Functions.IS_VALID, value));
+		assertEquals(false, evaluate(Functions.IS_NOT_VALID, value));
+
+		value.setValid(false);
+
+		assertEquals(false, evaluate(Functions.IS_MISSING, value));
+		assertEquals(true, evaluate(Functions.IS_NOT_MISSING, value));
+		assertEquals(false, evaluate(Functions.IS_VALID, value));
+		assertEquals(true, evaluate(Functions.IS_NOT_VALID, value));
+
+		value = (ScalarValue)FieldValue.create(TypeInfos.CONTINUOUS_FLOAT, "NaN");
+
+		assertEquals(false, evaluate(Functions.IS_VALID, value));
+		assertEquals(true, evaluate(Functions.IS_NOT_VALID, value));
+
+		value = (ScalarValue)FieldValue.create(TypeInfos.CONTINUOUS_DOUBLE, "NaN");
+
+		assertEquals(false, evaluate(Functions.IS_VALID, value));
+		assertEquals(true, evaluate(Functions.IS_NOT_VALID, value));
 	}
 
 	@Test
@@ -373,5 +423,10 @@ public class FunctionTest {
 	static
 	private FieldValue evaluate(Function function, List<?> arguments){
 		return function.evaluate(Lists.transform(arguments, argument -> FieldValueUtil.create(argument)));
+	}
+
+	static
+	private FieldValue evaluate(Function function, ScalarValue... arguments){
+		return function.evaluate(Arrays.asList(arguments));
 	}
 }

@@ -21,8 +21,10 @@ package org.jpmml.evaluator.mining;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.dmg.pmml.DataType;
+import org.dmg.pmml.FieldName;
 import org.dmg.pmml.mining.Segmentation;
 import org.jpmml.evaluator.EvaluatorUtil;
 import org.jpmml.evaluator.HasProbability;
@@ -41,23 +43,45 @@ public class MiningModelUtil {
 	}
 
 	static
-	public <V extends Number> Value<V> aggregateValues(ValueFactory<V> valueFactory, Segmentation.MultipleModelMethod multipleModelMethod, Segmentation.MissingPredictionTreatment missingPredictionTreatment, double missingThreshold, List<SegmentResult> segmentResults){
+	public SegmentResult asSegmentResult(Segmentation.MultipleModelMethod multipleModelMethod, Map<FieldName, ?> predictions){
+
+		switch(multipleModelMethod){
+			case SELECT_FIRST:
+			case SELECT_ALL:
+			case MODEL_CHAIN:
+				{
+					if(predictions instanceof SegmentResult){
+						SegmentResult segmentResult = (SegmentResult)predictions;
+
+						return segmentResult;
+					}
+				}
+				break;
+			default:
+				break;
+		}
+
+		return null;
+	}
+
+	static
+	public <V extends Number> Value<V> aggregateValues(ValueFactory<V> valueFactory, Segmentation.MultipleModelMethod multipleModelMethod, Segmentation.MissingPredictionTreatment missingPredictionTreatment, Number missingThreshold, List<SegmentResult> segmentResults){
 		ValueAggregator<V> aggregator;
 
 		switch(multipleModelMethod){
 			case AVERAGE:
 			case SUM:
-				aggregator = new ValueAggregator<>(valueFactory.newVector(0));
+				aggregator = new ValueAggregator.UnivariateStatistic<>(valueFactory);
 				break;
 			case MEDIAN:
-				aggregator = new ValueAggregator<>(valueFactory.newVector(segmentResults.size()));
+				aggregator = new ValueAggregator.Median<>(valueFactory, segmentResults.size());
 				break;
 			case WEIGHTED_AVERAGE:
 			case WEIGHTED_SUM:
-				aggregator = new ValueAggregator<>(valueFactory.newVector(0), valueFactory.newVector(0), valueFactory.newVector(0));
+				aggregator = new ValueAggregator.WeightedUnivariateStatistic<>(valueFactory);
 				break;
 			case WEIGHTED_MEDIAN:
-				aggregator = new ValueAggregator<>(valueFactory.newVector(segmentResults.size()), valueFactory.newVector(segmentResults.size()));
+				aggregator = new ValueAggregator.WeightedMedian<>(valueFactory, segmentResults.size());
 				break;
 			default:
 				throw new IllegalArgumentException();
@@ -99,7 +123,7 @@ public class MiningModelUtil {
 				} else
 
 				{
-					value = (Double)TypeUtil.cast(DataType.DOUBLE, targetValue);
+					value = (Number)TypeUtil.cast(DataType.DOUBLE, targetValue);
 				}
 			} catch(TypeCheckException tce){
 				throw tce.ensureContext(segmentResult.getSegment());
@@ -114,7 +138,7 @@ public class MiningModelUtil {
 				case WEIGHTED_AVERAGE:
 				case WEIGHTED_SUM:
 				case WEIGHTED_MEDIAN:
-					double weight = segmentResult.getWeight();
+					Number weight = segmentResult.getWeight();
 
 					aggregator.add(value, weight);
 					break;
@@ -142,14 +166,8 @@ public class MiningModelUtil {
 	}
 
 	static
-	public <V extends Number> ValueMap<String, V> aggregateVotes(ValueFactory<V> valueFactory, Segmentation.MultipleModelMethod multipleModelMethod, Segmentation.MissingPredictionTreatment missingPredictionTreatment, double missingThreshold, List<SegmentResult> segmentResults){
-		VoteAggregator<String, V> aggregator = new VoteAggregator<String, V>(){
-
-			@Override
-			public ValueFactory<V> getValueFactory(){
-				return valueFactory;
-			}
-		};
+	public <V extends Number> ValueMap<Object, V> aggregateVotes(ValueFactory<V> valueFactory, Segmentation.MultipleModelMethod multipleModelMethod, Segmentation.MissingPredictionTreatment missingPredictionTreatment, Number missingThreshold, List<SegmentResult> segmentResults){
+		VoteAggregator<Object, V> aggregator = new VoteAggregator<>(valueFactory);
 
 		Fraction<V> missingFraction = null;
 
@@ -186,35 +204,21 @@ public class MiningModelUtil {
 				}
 			}
 
-			String key;
-
-			try {
-				if((targetValue == null) || (targetValue instanceof String)){
-					key = (String)targetValue;
-				} else
-
-				{
-					key = (String)TypeUtil.cast(DataType.STRING, targetValue);
-				}
-			} catch(TypeCheckException tce){
-				throw tce.ensureContext(segmentResult.getSegment());
-			}
-
 			switch(multipleModelMethod){
 				case MAJORITY_VOTE:
-					aggregator.add(key);
+					aggregator.add(targetValue);
 					break;
 				case WEIGHTED_MAJORITY_VOTE:
-					double weight = segmentResult.getWeight();
+					Number weight = segmentResult.getWeight();
 
-					aggregator.add(key, weight);
+					aggregator.add(targetValue, weight);
 					break;
 				default:
 					throw new IllegalArgumentException();
 			}
 		}
 
-		ValueMap<String, V> result = aggregator.sumMap();
+		ValueMap<Object, V> result = aggregator.sumMap();
 
 		switch(missingPredictionTreatment){
 			case CONTINUE:
@@ -238,37 +242,21 @@ public class MiningModelUtil {
 	}
 
 	static
-	public <V extends Number> ValueMap<String, V> aggregateProbabilities(ValueFactory<V> valueFactory, Segmentation.MultipleModelMethod multipleModelMethod, Segmentation.MissingPredictionTreatment missingPredictionTreatment, double missingThreshold, List<String> categories, List<SegmentResult> segmentResults){
+	public <V extends Number> ValueMap<Object, V> aggregateProbabilities(ValueFactory<V> valueFactory, Segmentation.MultipleModelMethod multipleModelMethod, Segmentation.MissingPredictionTreatment missingPredictionTreatment, Number missingThreshold, List<?> categories, List<SegmentResult> segmentResults){
 		ProbabilityAggregator<V> aggregator;
 
 		switch(multipleModelMethod){
 			case AVERAGE:
-				aggregator = new ProbabilityAggregator<V>(0){
-
-					@Override
-					public ValueFactory<V> getValueFactory(){
-						return valueFactory;
-					}
-				};
+				aggregator = new ProbabilityAggregator.Average<>(valueFactory);
 				break;
 			case WEIGHTED_AVERAGE:
-				aggregator = new ProbabilityAggregator<V>(0, valueFactory.newVector(0)){
-
-					@Override
-					public ValueFactory<V> getValueFactory(){
-						return valueFactory;
-					}
-				};
+				aggregator = new ProbabilityAggregator.WeightedAverage<>(valueFactory);
 				break;
 			case MEDIAN:
+				aggregator = new ProbabilityAggregator.Median<>(valueFactory, segmentResults.size());
+				break;
 			case MAX:
-				aggregator = new ProbabilityAggregator<V>(segmentResults.size()){
-
-					@Override
-					public ValueFactory<V> getValueFactory(){
-						return valueFactory;
-					}
-				};
+				aggregator = new ProbabilityAggregator.Max<>(valueFactory, segmentResults.size());
 				break;
 			default:
 				throw new IllegalArgumentException();
@@ -317,7 +305,7 @@ public class MiningModelUtil {
 					aggregator.add(hasProbability);
 					break;
 				case WEIGHTED_AVERAGE:
-					double weight = segmentResult.getWeight();
+					Number weight = segmentResult.getWeight();
 
 					aggregator.add(hasProbability, weight);
 					break;
@@ -359,10 +347,10 @@ public class MiningModelUtil {
 			}
 		}
 
-		public boolean update(SegmentResult segmentResult, double missingThreshold){
+		public boolean update(SegmentResult segmentResult, Number missingThreshold){
 			this.missingWeightSum.add(segmentResult.getWeight());
 
-			return (this.missingWeightSum.doubleValue() / this.weightSum.doubleValue()) > missingThreshold;
+			return (this.missingWeightSum.doubleValue() / this.weightSum.doubleValue()) > missingThreshold.doubleValue();
 		}
 	}
 }

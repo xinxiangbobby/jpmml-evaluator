@@ -24,6 +24,7 @@ import org.dmg.pmml.FieldName;
 import org.dmg.pmml.Predicate;
 import org.dmg.pmml.SimplePredicate;
 import org.dmg.pmml.SimpleSetPredicate;
+import org.dmg.pmml.tree.LeafNode;
 import org.dmg.pmml.tree.Node;
 import org.junit.Test;
 
@@ -38,7 +39,7 @@ public class PredicateTransformerTest {
 
 		assertSame(simpleSetPredicate, transform(simpleSetPredicate));
 
-		CompoundPredicate compoundPredicate = new CompoundPredicate(CompoundPredicate.BooleanOperator.XOR)
+		CompoundPredicate compoundPredicate = new CompoundPredicate(CompoundPredicate.BooleanOperator.XOR, null)
 			.addPredicates(simpleSetPredicate);
 
 		assertSame(compoundPredicate, transform(compoundPredicate));
@@ -66,8 +67,7 @@ public class PredicateTransformerTest {
 
 	static
 	private Predicate transform(Predicate predicate){
-		Node node = new Node()
-			.setPredicate(predicate);
+		Node node = new LeafNode(null, predicate);
 
 		PredicateTransformer transformer = new PredicateTransformer();
 		transformer.applyTo(node);

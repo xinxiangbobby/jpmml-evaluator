@@ -20,14 +20,11 @@ package org.jpmml.evaluator;
 
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.PMMLObject;
-import org.jpmml.model.visitors.MiningSchemaCleaner;
 
 /**
  * <p>
  * Thrown to indicate that a field is not visible in the current context.
  * </p>
- *
- * @see MiningSchemaCleaner
  */
 public class InvisibleFieldException extends EvaluationException {
 

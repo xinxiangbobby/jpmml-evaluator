@@ -22,6 +22,7 @@ import org.apache.commons.math3.distribution.NormalDistribution;
 import org.dmg.pmml.ContinuousDistribution;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.GaussianDistribution;
+import org.dmg.pmml.PMMLAttributes;
 import org.dmg.pmml.PoissonDistribution;
 
 public class DistributionUtil {
@@ -50,14 +51,29 @@ public class DistributionUtil {
 
 	static
 	public double probability(GaussianDistribution gaussianDistribution, Number x){
-		NormalDistribution distribution = new NormalDistribution(gaussianDistribution.getMean(), Math.sqrt(gaussianDistribution.getVariance()));
+		Number mean = gaussianDistribution.getMean();
+		if(mean == null){
+			throw new MissingAttributeException(gaussianDistribution, PMMLAttributes.GAUSSIANDISTRIBUTION_MEAN);
+		}
+
+		Number variance = gaussianDistribution.getVariance();
+		if(variance == null){
+			throw new MissingAttributeException(gaussianDistribution, PMMLAttributes.GAUSSIANDISTRIBUTION_VARIANCE);
+		}
+
+		NormalDistribution distribution = new NormalDistribution(mean.doubleValue(), Math.sqrt(variance.doubleValue()));
 
 		return distribution.density(x.doubleValue());
 	}
 
 	static
 	public double probability(PoissonDistribution poissonDistribution, Number x){
-		org.apache.commons.math3.distribution.PoissonDistribution distribution = new org.apache.commons.math3.distribution.PoissonDistribution(null, poissonDistribution.getMean(), org.apache.commons.math3.distribution.PoissonDistribution.DEFAULT_EPSILON, org.apache.commons.math3.distribution.PoissonDistribution.DEFAULT_MAX_ITERATIONS);
+		Number mean = poissonDistribution.getMean();
+		if(mean == null){
+			throw new MissingAttributeException(poissonDistribution, PMMLAttributes.POISSONDISTRIBUTION_MEAN);
+		}
+
+		org.apache.commons.math3.distribution.PoissonDistribution distribution = new org.apache.commons.math3.distribution.PoissonDistribution(null, mean.doubleValue(), org.apache.commons.math3.distribution.PoissonDistribution.DEFAULT_EPSILON, org.apache.commons.math3.distribution.PoissonDistribution.DEFAULT_MAX_ITERATIONS);
 
 		x = (Number)TypeUtil.cast(DataType.INTEGER, x);
 
@@ -71,11 +87,16 @@ public class DistributionUtil {
 			return isNoOp((GaussianDistribution)distribution);
 		}
 
-		return true;
+		return false;
 	}
 
 	static
 	public boolean isNoOp(GaussianDistribution gaussianDistribution){
-		return (gaussianDistribution.getVariance() <= 0d);
+		Number variance = gaussianDistribution.getVariance();
+		if(variance == null){
+			throw new MissingAttributeException(gaussianDistribution, PMMLAttributes.GAUSSIANDISTRIBUTION_VARIANCE);
+		}
+
+		return variance.doubleValue() <= 0d;
 	}
 }

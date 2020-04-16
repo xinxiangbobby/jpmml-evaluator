@@ -26,20 +26,20 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Predicate;
 
 import org.dmg.pmml.Array;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.Expression;
 import org.dmg.pmml.Field;
+import org.dmg.pmml.HasType;
 import org.dmg.pmml.HasValue;
 import org.dmg.pmml.HasValueSet;
 import org.dmg.pmml.OpType;
 import org.dmg.pmml.PMMLObject;
 import org.jpmml.model.ToStringHelper;
+import org.jpmml.model.XPathUtil;
 
 /**
  * <p>
@@ -60,7 +60,7 @@ import org.jpmml.model.ToStringHelper;
  * @see FieldValueUtil
  */
 abstract
-public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializable {
+public class FieldValue implements TypeInfo, Serializable {
 
 	private DataType dataType = null;
 
@@ -69,29 +69,41 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 
 	FieldValue(DataType dataType, Object value){
 		setDataType(Objects.requireNonNull(dataType));
-		setValue(filterValue(Objects.requireNonNull(value)));
+		setValue(Objects.requireNonNull(value));
 	}
 
-	public FieldValue cast(DataType dataType, OpType opType){
-		boolean compatible = true;
+	abstract
+	public boolean isValid();
+
+	abstract
+	public int compareToValue(Object value);
+
+	abstract
+	public int compareToValue(FieldValue value);
+
+	public FieldValue cast(HasType<?> hasType){
+		DataType dataType = hasType.getDataType();
+		OpType opType = hasType.getOpType();
+
+		boolean equal = true;
 
 		if(dataType == null){
 			dataType = getDataType();
 		} else
 
-		if(dataType != null && !(dataType).equals(getDataType())){
-			compatible = false;
+		{
+			equal &= (getDataType()).equals(dataType);
 		} // End if
 
 		if(opType == null){
 			opType = getOpType();
 		} else
 
-		if(opType != null && !(opType).equals(getOpType())){
-			compatible = false;
+		{
+			equal &= (getOpType()).equals(opType);
 		} // End if
 
-		if(compatible){
+		if(equal){
 			return this;
 		}
 
@@ -102,7 +114,7 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 		DataType dataType = typeInfo.getDataType();
 		OpType opType = typeInfo.getOpType();
 
-		if((dataType).equals(getDataType()) && (opType).equals(getOpType())){
+		if((getDataType()).equals(dataType) && (getOpType()).equals(opType)){
 			return this;
 		}
 
@@ -111,24 +123,20 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 
 	/**
 	 * <p>
+	 * Calculates the order between this value and the reference value.
+	 * </p>
+	 */
+	public int compareTo(HasValue<?> hasValue){
+		return compareToValue(ensureValue(hasValue));
+	}
+
+	/**
+	 * <p>
 	 * Checks if this value is equal to the reference value.
 	 * </p>
 	 */
 	public boolean equals(HasValue<?> hasValue){
-
-		if(hasValue instanceof HasParsedValue){
-			HasParsedValue<?> hasParsedValue = (HasParsedValue<?>)hasValue;
-
-			return equals(hasParsedValue);
-		}
-
-		return equalsString(ensureValue(hasValue));
-	}
-
-	public boolean equals(HasParsedValue<?> hasParsedValue){
-		FieldValue value = hasParsedValue.getValue(this);
-
-		return this.equals(value);
+		return equalsValue(ensureValue(hasValue));
 	}
 
 	/**
@@ -137,16 +145,15 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 	 * </p>
 	 */
 	public boolean isIn(HasValueSet<?> hasValueSet){
-
-		if(hasValueSet instanceof HasParsedValueSet){
-			HasParsedValueSet<?> hasParsedValueSet = (HasParsedValueSet<?>)hasValueSet;
-
-			return isIn(hasParsedValueSet);
-		}
-
 		Array array = hasValueSet.getArray();
 		if(array == null){
 			throw new MissingElementException(MissingElementException.formatMessage(XPathUtil.formatElement((Class)hasValueSet.getClass()) + "/" + XPathUtil.formatElement(Array.class)), (PMMLObject)hasValueSet);
+		} // End if
+
+		if(array instanceof SetHolder){
+			SetHolder setHolder = (SetHolder)array;
+
+			return setHolder.contains(getDataType(), getValue());
 		}
 
 		List<?> values = ArrayUtil.getContent(array);
@@ -155,67 +162,13 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 			.anyMatch(value -> equalsValue(value));
 	}
 
-	public boolean isIn(HasParsedValueSet<?> hasParsedValueSet){
-		Set<FieldValue> values = hasParsedValueSet.getValueSet(this);
-
-		return values.contains(this);
-	}
-
-	/**
-	 * <p>
-	 * Calculates the order between this value and the reference value.
-	 * </p>
-	 */
-	public int compareTo(HasValue<?> hasValue){
-
-		if(hasValue instanceof HasParsedValue){
-			HasParsedValue<?> hasParsedValue = (HasParsedValue<?>)hasValue;
-
-			return compareTo(hasParsedValue);
-		}
-
-		return compareToString(ensureValue(hasValue));
-	}
-
-	public int compareTo(HasParsedValue<?> hasParsedValue){
-		FieldValue value = hasParsedValue.getValue(this);
-
-		return this.compareTo(value);
-	}
-
-	public boolean equalsString(String string){
-		Object value = TypeUtil.parse(getDataType(), string);
-
-		return (getValue()).equals(value);
-	}
-
-	/**
-	 * <p>
-	 * A value-safe replacement for {@link #equals(Object)}.
-	 * </p>
-	 */
-	public boolean equalsValue(FieldValue value){
-
-		if(sameScalarType(value)){
-			return (getValue()).equals(value.getValue());
-		}
-
-		return equalsValue(value.getValue());
-	}
-
-	private boolean equalsValue(Object value){
-		value = TypeUtil.parseOrCast(getDataType(), value);
-
-		return (getValue()).equals(value);
-	}
-
 	public boolean isIn(Collection<FieldValue> values){
 		Predicate<FieldValue> predicate = new Predicate<FieldValue>(){
 
 			@Override
 			public boolean test(FieldValue value){
 
-				if(Objects.equals(FieldValues.MISSING_VALUE, value)){
+				if(FieldValueUtil.isMissing(value)){
 					return false;
 				}
 
@@ -227,49 +180,18 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 			.anyMatch(predicate);
 	}
 
-	public int compareToString(String string){
-		Object value = TypeUtil.parse(getDataType(), string);
-
-		return ((Comparable)getValue()).compareTo(value);
-	}
-
-	/**
-	 * <p>
-	 * A value-safe replacement for {@link #compareTo(FieldValue)}
-	 * </p>
-	 */
-	public int compareToValue(FieldValue value){
-
-		if(sameScalarType(value)){
-			return ((Comparable)getValue()).compareTo(value.getValue());
-		}
-
-		return compareToValue(value.getValue());
-	}
-
-	private int compareToValue(Object value){
+	public boolean equalsValue(Object value){
 		value = TypeUtil.parseOrCast(getDataType(), value);
 
-		return ((Comparable)getValue()).compareTo(value);
+		return (getValue()).equals(value);
 	}
 
-	public <V> V getMapping(HasParsedValueMapping<V> hasParsedValueMapping){
-		Map<FieldValue, V> values = hasParsedValueMapping.getValueMapping(this);
-
-		return values.get(this);
+	public boolean equalsValue(FieldValue value){
+		return equalsValue(value.getValue());
 	}
 
-	private boolean isScalar(){
-		return (this instanceof Scalar);
-	}
-
-	private boolean sameScalarType(FieldValue value){
-
-		if(isScalar()){
-			return (getClass()).equals(value.getClass());
-		}
-
-		return false;
+	public Collection<?> asCollection(){
+		return TypeUtil.cast(Collection.class, getValue());
 	}
 
 	public String asString(){
@@ -283,7 +205,7 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 			return (Number)value;
 		}
 
-		return (Double)getValue(DataType.DOUBLE);
+		return (Number)getValue(DataType.DOUBLE);
 	}
 
 	public Integer asInteger(){
@@ -363,35 +285,13 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 		}
 	}
 
-	private Object getValue(DataType dataType){
-		Object value = getValue();
+	Object getValue(DataType dataType){
 
-		try {
-			return TypeUtil.cast(dataType, value);
-		} catch(TypeCheckException tce){
-
-			try {
-				if(value instanceof String){
-					String string = (String)value;
-
-					return TypeUtil.parse(dataType, string);
-				}
-			} catch(IllegalArgumentException iae){
-				// Ignored
-			}
-
-			throw tce;
-		}
-	}
-
-	@Override
-	public int compareTo(FieldValue that){
-
-		if((this.getOpType() != that.getOpType()) || (this.getDataType() != that.getDataType())){
-			throw new ClassCastException();
+		if((getDataType()).equals(dataType)){
+			return getValue();
 		}
 
-		return compareToValue(that);
+		return TypeUtil.parseOrCast(dataType, getValue());
 	}
 
 	@Override
@@ -405,7 +305,7 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 		if(object instanceof FieldValue){
 			FieldValue that = (FieldValue)object;
 
-			return (this.getOpType() == that.getOpType()) && (this.getDataType() == that.getDataType()) && (this.getValue()).equals(that.getValue());
+			return (this.getOpType()).equals(that.getOpType()) && (this.getDataType()).equals(that.getDataType()) && (this.getValue()).equals(that.getValue());
 		}
 
 		return false;
@@ -422,6 +322,7 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 		ToStringHelper helper = new ToStringHelper(this)
 			.add("opType", getOpType())
 			.add("dataType", getDataType())
+			.add("valid", isValid())
 			.add("value", getValue());
 
 		return helper;
@@ -449,14 +350,6 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 
 		if(dataType == null || opType == null){
 			throw new IllegalArgumentException();
-		} // End if
-
-		if(value instanceof Collection){
-			// Ignored
-		} else
-
-		{
-			value = TypeUtil.parseOrCast(dataType, value);
 		}
 
 		switch(opType){
@@ -481,14 +374,6 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 		DataType dataType = typeInfo.getDataType();
 		OpType opType = typeInfo.getOpType();
 
-		if(value instanceof Collection){
-			// Ignored
-		} else
-
-		{
-			value = TypeUtil.parseOrCast(dataType, value);
-		}
-
 		switch(opType){
 			case CONTINUOUS:
 				return ContinuousValue.create(dataType, value);
@@ -504,8 +389,8 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 	}
 
 	static
-	private String ensureValue(HasValue<?> hasValue){
-		String value = hasValue.getValue();
+	private Object ensureValue(HasValue<?> hasValue){
+		Object value = hasValue.getValue();
 		if(value == null){
 			throw new MissingAttributeException(MissingAttributeException.formatMessage(XPathUtil.formatElement((Class)hasValue.getClass()) + "@value"), (PMMLObject)hasValue);
 		}
@@ -513,41 +398,7 @@ public class FieldValue implements TypeInfo, Comparable<FieldValue>, Serializabl
 		return value;
 	}
 
-	static
-	private Object filterValue(Object value){
-
-		if(value instanceof Float){
-			return filterValue((Float)value);
-		} else
-
-		if(value instanceof Double){
-			return filterValue((Double)value);
-		}
-
-		return value;
-	}
-
-	static
-	private Float filterValue(Float value){
-
-		if(value.doubleValue() == 0f){
-			return Numbers.FLOAT_ZERO;
-		}
-
-		return value;
-	}
-
-	static
-	private Double filterValue(Double value){
-
-		if(value.doubleValue() == 0d){
-			return Numbers.DOUBLE_ZERO;
-		}
-
-		return value;
-	}
-
-	static
-	interface Scalar {
-	}
+	static final Integer STATUS_UNKNOWN_VALID = Integer.MAX_VALUE;
+	static final Integer STATUS_MISSING = 0;
+	static final Integer STATUS_UNKNOWN_INVALID = Integer.MIN_VALUE;
 }

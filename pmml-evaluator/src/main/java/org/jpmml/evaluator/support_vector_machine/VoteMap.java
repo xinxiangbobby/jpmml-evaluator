@@ -18,6 +18,7 @@
  */
 package org.jpmml.evaluator.support_vector_machine;
 
+import org.jpmml.evaluator.Numbers;
 import org.jpmml.evaluator.Value;
 import org.jpmml.evaluator.ValueMap;
 
@@ -35,6 +36,6 @@ class VoteMap<K, V extends Number> extends ValueMap<K, V> {
 	public void increment(K key){
 		Value<V> value = ensureValue(key);
 
-		value.add(1d);
+		value.add(Numbers.DOUBLE_ONE);
 	}
 }

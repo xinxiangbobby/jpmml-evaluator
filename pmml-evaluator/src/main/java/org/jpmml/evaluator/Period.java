@@ -18,18 +18,19 @@
  */
 package org.jpmml.evaluator;
 
+import org.dmg.pmml.ComplexValue;
+
 abstract
-class Period<P extends Period<P>> extends Number implements Comparable<P> {
+class Period<P extends Period<P>> extends Number implements ComplexValue, Comparable<P> {
+
+	@Override
+	public Long toSimpleValue(){
+		return Long.valueOf(longValue());
+	}
 
 	@Override
 	public int intValue(){
-		long value = longValue();
-
-		if(value < Integer.MIN_VALUE || value > Integer.MAX_VALUE){
-			throw new UndefinedResultException();
-		}
-
-		return (int)value;
+		return Math.toIntExact(longValue());
 	}
 
 	@Override

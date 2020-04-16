@@ -26,12 +26,25 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 
 import com.google.common.math.DoubleMath;
+import org.dmg.pmml.ComplexValue;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.OpType;
 
 public class TypeUtil {
 
 	private TypeUtil(){
+	}
+
+	static
+	public String format(Object value){
+
+		if(value instanceof ComplexValue){
+			ComplexValue complexValue = (ComplexValue)value;
+
+			value = complexValue.toSimpleValue();
+		}
+
+		return toString(value);
 	}
 
 	/**
@@ -102,14 +115,14 @@ public class TypeUtil {
 		try {
 			long result = Long.parseLong(value);
 
-			return toInteger(result);
+			return parseInteger(value, result);
 		} catch(NumberFormatException nfeInteger){
 
 			try {
 				double result = Double.parseDouble(value);
 
 				if(DoubleMath.isMathematicalInteger(result)){
-					return toInteger((long)result);
+					return parseInteger(value, (long)result);
 				}
 			} catch(NumberFormatException nfeDouble){
 				// Ignored
@@ -122,6 +135,16 @@ public class TypeUtil {
 			}
 
 			throw nfeInteger;
+		}
+	}
+
+	static
+	private Integer parseInteger(String value, long parsedValue){
+
+		try {
+			return Math.toIntExact(parsedValue);
+		} catch(ArithmeticException ae){
+			throw new IllegalArgumentException(value, ae);
 		}
 	}
 
@@ -142,6 +165,18 @@ public class TypeUtil {
 					return Numbers.FLOAT_ONE;
 				default:
 					break;
+			}
+
+			if(("NaN").equalsIgnoreCase(value)){
+				return Float.NaN;
+			} else
+
+			if(("-INF").equalsIgnoreCase(value)){
+				return Float.NEGATIVE_INFINITY;
+			} else
+
+			if(("INF").equalsIgnoreCase(value)){
+				return Float.POSITIVE_INFINITY;
 			}
 		}
 
@@ -182,6 +217,18 @@ public class TypeUtil {
 					return Numbers.DOUBLE_TWO;
 				default:
 					break;
+			}
+
+			if(("NaN").equalsIgnoreCase(value)){
+				return Double.NaN;
+			} else
+
+			if(("-INF").equalsIgnoreCase(value)){
+				return Double.NEGATIVE_INFINITY;
+			} else
+
+			if(("INF").equalsIgnoreCase(value)){
+				return Double.POSITIVE_INFINITY;
 			}
 		}
 
@@ -284,15 +331,15 @@ public class TypeUtil {
 	}
 
 	static
-	public boolean equals(DataType dataType, Object value, String referenceValue){
+	public boolean equals(DataType dataType, Object value, Object referenceValue){
 
 		try {
-			return (parseOrCast(dataType, value)).equals(parse(dataType, referenceValue));
+			return (parseOrCast(dataType, value)).equals(parseOrCast(dataType, referenceValue));
 		} catch(IllegalArgumentException | TypeCheckException e){
 
 			// The String representation of invalid or missing values (eg. "N/A") may not be parseable to the requested representation
 			try {
-				return (parseOrCast(DataType.STRING, value)).equals(referenceValue);
+				return (format(value)).equals(format(referenceValue));
 			} catch(TypeCheckException tce){
 				// Ignored
 			}
@@ -405,6 +452,8 @@ public class TypeUtil {
 				case FLOAT:
 				case INTEGER:
 					return left;
+				default:
+					break;
 			}
 		} else
 
@@ -570,20 +619,20 @@ public class TypeUtil {
 			Number number = (Number)value;
 
 			if(DoubleMath.isMathematicalInteger(number.doubleValue())){
-				return toInteger(number.longValue());
+				return toInteger(number);
 			}
 		} else
 
 		if(value instanceof Long){
 			Long number = (Long)value;
 
-			return toInteger(number.longValue());
+			return toInteger(number);
 		} else
 
 		if((value instanceof Short) || (value instanceof Byte)){
 			Number number = (Number)value;
 
-			return Integer.valueOf(number.intValue());
+			return number.intValue();
 		} else
 
 		if(value instanceof Boolean){
@@ -595,20 +644,21 @@ public class TypeUtil {
 		if((value instanceof DaysSinceDate) || (value instanceof SecondsSinceDate) || (value instanceof SecondsSinceMidnight)){
 			Number number = (Number)value;
 
-			return Integer.valueOf(number.intValue());
+			return toInteger(number);
 		}
 
 		throw new TypeCheckException(DataType.INTEGER, value);
 	}
 
 	static
-	private Integer toInteger(long value){
+	private Integer toInteger(Number value){
 
-		if(value < Integer.MIN_VALUE || value > Integer.MAX_VALUE){
-			throw new UndefinedResultException();
+		try {
+			return Math.toIntExact(value.longValue());
+		} catch(ArithmeticException ae){
+			throw new TypeCheckException(DataType.INTEGER, value)
+				.initCause(ae);
 		}
-
-		return Integer.valueOf((int)value);
 	}
 
 	/**
@@ -744,12 +794,12 @@ public class TypeUtil {
 		if((value instanceof Double) || (value instanceof Float) || (value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)){
 			Number number = (Number)value;
 
-			if(number.doubleValue() == 1d){
-				return Boolean.TRUE;
-			} else
-
 			if(number.doubleValue() == 0d){
 				return Boolean.FALSE;
+			} else
+
+			if(number.doubleValue() == 1d){
+				return Boolean.TRUE;
 			}
 		}
 
@@ -867,17 +917,37 @@ public class TypeUtil {
 	}
 
 	static
-	public DataType getConstantDataType(String string){
+	public DataType getConstantDataType(Object value){
+
+		if(value instanceof String){
+			String string = (String)value;
+
+			return getConstantDataType(string);
+		}
+
+		return TypeUtil.getDataType(value);
+	}
+
+	static
+	public DataType getConstantDataType(String value){
+
+		if(("").equals(value)){
+			return DataType.STRING;
+		} else
+
+		if(("NaN").equalsIgnoreCase(value) || ("INF").equalsIgnoreCase(value) || ("-INF").equalsIgnoreCase(value)){
+			return DataType.DOUBLE;
+		}
 
 		try {
-			if(string.indexOf('.') > -1){
-				Double.parseDouble(string);
+			if(value.indexOf('.') > -1){
+				Double.parseDouble(value);
 
-				return DataType.FLOAT;
+				return DataType.DOUBLE;
 			} else
 
 			{
-				Long.parseLong(string);
+				Long.parseLong(value);
 
 				return DataType.INTEGER;
 			}

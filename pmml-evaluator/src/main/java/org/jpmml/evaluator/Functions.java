@@ -23,13 +23,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.IllegalFormatException;
 import java.util.List;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.moment.Mean;
 import org.apache.commons.math3.stat.descriptive.rank.Max;
@@ -38,74 +37,97 @@ import org.apache.commons.math3.stat.descriptive.summary.Product;
 import org.apache.commons.math3.stat.descriptive.summary.Sum;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.OpType;
-import org.jpmml.evaluator.functions.AbstractFunction;
-import org.jpmml.evaluator.functions.AbstractNumericFunction;
-import org.jpmml.evaluator.functions.AggregateFunction;
+import org.dmg.pmml.PMMLFunctions;
+import org.jpmml.evaluator.functions.AggregateMathFunction;
+import org.jpmml.evaluator.functions.AggregateStringFunction;
 import org.jpmml.evaluator.functions.ArithmeticFunction;
-import org.jpmml.evaluator.functions.BinaryBooleanFunction;
+import org.jpmml.evaluator.functions.BinaryFunction;
 import org.jpmml.evaluator.functions.ComparisonFunction;
+import org.jpmml.evaluator.functions.DoubleUnaryMathFunction;
 import org.jpmml.evaluator.functions.EqualityFunction;
-import org.jpmml.evaluator.functions.FpMathFunction;
-import org.jpmml.evaluator.functions.MathFunction;
-import org.jpmml.evaluator.functions.StringFunction;
+import org.jpmml.evaluator.functions.LogicalFunction;
+import org.jpmml.evaluator.functions.MultiaryFunction;
+import org.jpmml.evaluator.functions.RoundingFunction;
+import org.jpmml.evaluator.functions.TernaryFunction;
 import org.jpmml.evaluator.functions.TrigonometricFunction;
 import org.jpmml.evaluator.functions.UnaryBooleanFunction;
+import org.jpmml.evaluator.functions.UnaryFunction;
+import org.jpmml.evaluator.functions.UnaryMathFunction;
+import org.jpmml.evaluator.functions.UnaryStringFunction;
 import org.jpmml.evaluator.functions.ValueFunction;
-import org.jpmml.evaluator.functions.ValueListFunction;
+import org.jpmml.evaluator.functions.ValueSpaceFunction;
 
 public interface Functions {
 
-	ArithmeticFunction PLUS = new ArithmeticFunction("+"){
-
-		@Override
-		public Double evaluate(Number left, Number right){
-			return Double.valueOf(left.doubleValue() + right.doubleValue());
-		}
-	};
-
-	ArithmeticFunction MINUS = new ArithmeticFunction("-"){
-
-		@Override
-		public Double evaluate(Number left, Number right){
-			return Double.valueOf(left.doubleValue() - right.doubleValue());
-		}
-	};
-
-	ArithmeticFunction MULTIPLY = new ArithmeticFunction("*"){
-
-		@Override
-		public Double evaluate(Number left, Number right){
-			return Double.valueOf(left.doubleValue() * right.doubleValue());
-		}
-	};
-
-	ArithmeticFunction DIVIDE = new ArithmeticFunction("/"){
+	ArithmeticFunction ADD = new ArithmeticFunction(PMMLFunctions.ADD){
 
 		@Override
 		public Number evaluate(Number left, Number right){
 
 			if(left instanceof Integer && right instanceof Integer){
-				return Integer.valueOf(left.intValue() / right.intValue());
+				return Math.addExact(left.intValue(), right.intValue());
 			}
 
-			return Double.valueOf(left.doubleValue() / right.doubleValue());
+			return (left.doubleValue() + right.doubleValue());
 		}
 	};
 
-	ArithmeticFunction MODULO = new ArithmeticFunction("x-modulo"){
+	ArithmeticFunction SUBTRACT = new ArithmeticFunction(PMMLFunctions.SUBTRACT){
 
 		@Override
 		public Number evaluate(Number left, Number right){
 
 			if(left instanceof Integer && right instanceof Integer){
-				return Integer.valueOf(left.intValue() % right.intValue());
+				return Math.subtractExact(left.intValue(), right.intValue());
 			}
 
-			return Double.valueOf(left.doubleValue() % right.doubleValue());
+			return (left.doubleValue() - right.doubleValue());
 		}
 	};
 
-	AggregateFunction MIN = new AggregateFunction("min"){
+	ArithmeticFunction MULTIPLY = new ArithmeticFunction(PMMLFunctions.MULTIPLY){
+
+		@Override
+		public Number evaluate(Number left, Number right){
+
+			if(left instanceof Integer && right instanceof Integer){
+				return Math.multiplyExact(left.intValue(), right.intValue());
+			}
+
+			return (left.doubleValue() * right.doubleValue());
+		}
+	};
+
+	ArithmeticFunction DIVIDE = new ArithmeticFunction(PMMLFunctions.DIVIDE){
+
+		@Override
+		public Number evaluate(Number left, Number right){
+
+			if(left instanceof Integer && right instanceof Integer){
+				return (left.intValue() / right.intValue());
+			}
+
+			return (left.doubleValue() / right.doubleValue());
+		}
+	};
+
+	ArithmeticFunction MODULO = new ArithmeticFunction(PMMLFunctions.MODULO){
+
+		@Override
+		public Number evaluate(Number left, Number right){
+
+			if(left instanceof Integer && right instanceof Integer){
+				return Math.floorMod(left.intValue(), right.intValue());
+			}
+
+			double leftValue = left.doubleValue();
+			double rightValue = right.doubleValue();
+
+			return leftValue - Math.floor(leftValue / rightValue) * rightValue;
+		}
+	};
+
+	AggregateMathFunction MIN = new AggregateMathFunction(PMMLFunctions.MIN){
 
 		@Override
 		public Min createStatistic(){
@@ -113,7 +135,7 @@ public interface Functions {
 		}
 	};
 
-	AggregateFunction MAX = new AggregateFunction("max"){
+	AggregateMathFunction MAX = new AggregateMathFunction(PMMLFunctions.MAX){
 
 		@Override
 		public Max createStatistic(){
@@ -121,7 +143,7 @@ public interface Functions {
 		}
 	};
 
-	AggregateFunction AVG = new AggregateFunction("avg"){
+	AggregateMathFunction AVG = new AggregateMathFunction(PMMLFunctions.AVG){
 
 		@Override
 		public Mean createStatistic(){
@@ -139,7 +161,7 @@ public interface Functions {
 		}
 	};
 
-	AggregateFunction SUM = new AggregateFunction("sum"){
+	AggregateMathFunction SUM = new AggregateMathFunction(PMMLFunctions.SUM){
 
 		@Override
 		public Sum createStatistic(){
@@ -147,7 +169,7 @@ public interface Functions {
 		}
 	};
 
-	AggregateFunction PRODUCT = new AggregateFunction("product"){
+	AggregateMathFunction PRODUCT = new AggregateMathFunction(PMMLFunctions.PRODUCT){
 
 		@Override
 		public Product createStatistic(){
@@ -155,7 +177,7 @@ public interface Functions {
 		}
 	};
 
-	FpMathFunction LOG10 = new FpMathFunction("log10"){
+	DoubleUnaryMathFunction LOG10 = new DoubleUnaryMathFunction(PMMLFunctions.LOG10){
 
 		@Override
 		public Double evaluate(Number value){
@@ -163,7 +185,7 @@ public interface Functions {
 		}
 	};
 
-	FpMathFunction LN = new FpMathFunction("ln"){
+	DoubleUnaryMathFunction LN = new DoubleUnaryMathFunction(PMMLFunctions.LN){
 
 		@Override
 		public Double evaluate(Number value){
@@ -171,7 +193,7 @@ public interface Functions {
 		}
 	};
 
-	FpMathFunction LN1P = new FpMathFunction("x-ln1p"){
+	DoubleUnaryMathFunction LN1P = new DoubleUnaryMathFunction(PMMLFunctions.LN1P){
 
 		@Override
 		public Double evaluate(Number value){
@@ -179,7 +201,7 @@ public interface Functions {
 		}
 	};
 
-	FpMathFunction EXP = new FpMathFunction("exp"){
+	DoubleUnaryMathFunction EXP = new DoubleUnaryMathFunction(PMMLFunctions.EXP){
 
 		@Override
 		public Double evaluate(Number value){
@@ -187,7 +209,7 @@ public interface Functions {
 		}
 	};
 
-	FpMathFunction EXPM1 = new FpMathFunction("x-expm1"){
+	DoubleUnaryMathFunction EXPM1 = new DoubleUnaryMathFunction(PMMLFunctions.EXPM1){
 
 		@Override
 		public Double evaluate(Number value){
@@ -195,7 +217,7 @@ public interface Functions {
 		}
 	};
 
-	FpMathFunction SQRT = new FpMathFunction("sqrt"){
+	DoubleUnaryMathFunction SQRT = new DoubleUnaryMathFunction(PMMLFunctions.SQRT){
 
 		@Override
 		public Double evaluate(Number value){
@@ -203,7 +225,7 @@ public interface Functions {
 		}
 	};
 
-	MathFunction ABS = new MathFunction("abs"){
+	UnaryMathFunction ABS = new UnaryMathFunction(PMMLFunctions.ABS){
 
 		@Override
 		public Number evaluate(Number value){
@@ -216,96 +238,132 @@ public interface Functions {
 		}
 	};
 
-	AbstractNumericFunction POW = new AbstractNumericFunction("pow"){
+	BinaryFunction POW = new BinaryFunction(PMMLFunctions.POW){
 
-		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
-
-			return evaluate(getRequiredArgument(arguments, 0), getRequiredArgument(arguments, 1));
+		public Double evaluate(Number x, Number y){
+			return Math.pow(x.doubleValue(), y.doubleValue());
 		}
 
-		private FieldValue evaluate(FieldValue left, FieldValue right){
-			DataType dataType = TypeUtil.getCommonDataType(left.getDataType(), right.getDataType());
+		@Override
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			DataType dataType = TypeUtil.getCommonDataType(first.getDataType(), second.getDataType());
 
-			Double result = Math.pow((left.asNumber()).doubleValue(), (right.asNumber()).doubleValue());
+			Double result = evaluate(first.asNumber(), second.asNumber());
 
 			return FieldValueUtil.create(dataType, OpType.CONTINUOUS, result);
 		}
 	};
 
-	AbstractNumericFunction THRESHOLD = new AbstractNumericFunction("threshold"){
+	BinaryFunction THRESHOLD = new BinaryFunction(PMMLFunctions.THRESHOLD){
 
-		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
+		public Integer evaluate(Number x, Number y){
+			int order = Double.compare(x.doubleValue(), y.doubleValue());
 
-			return evaluate(getRequiredArgument(arguments, 0), getRequiredArgument(arguments, 1));
+			return (order > 0) ? Numbers.INTEGER_ONE : Numbers.INTEGER_ZERO;
 		}
 
-		private FieldValue evaluate(FieldValue left, FieldValue right){
-			DataType dataType = TypeUtil.getCommonDataType(left.getDataType(), right.getDataType());
+		@Override
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			DataType dataType = TypeUtil.getCommonDataType(first.getDataType(), second.getDataType());
 
-			Integer result = ((left.asNumber()).doubleValue() > (right.asNumber()).doubleValue()) ? Numbers.INTEGER_ONE : Numbers.INTEGER_ZERO;
+			Integer result = evaluate(first.asNumber(), second.asNumber());
 
 			return FieldValueUtil.create(dataType, OpType.CONTINUOUS, result);
 		}
 	};
 
-	MathFunction FLOOR = new MathFunction("floor"){
+	RoundingFunction FLOOR = new RoundingFunction(PMMLFunctions.FLOOR){
 
 		@Override
-		public Number evaluate(Number number){
-			return Math.floor(number.doubleValue());
+		public Integer evaluate(Number number){
+			long result = (long)Math.floor(number.doubleValue());
+
+			return Math.toIntExact(result);
 		}
 	};
 
-	MathFunction CEIL = new MathFunction("ceil"){
+	RoundingFunction CEIL = new RoundingFunction(PMMLFunctions.CEIL){
 
 		@Override
-		public Number evaluate(Number number){
-			return Math.ceil(number.doubleValue());
+		public Integer evaluate(Number number){
+			long result = (long)Math.ceil(number.doubleValue());
+
+			return Math.toIntExact(result);
 		}
 	};
 
-	MathFunction ROUND = new MathFunction("round"){
+	RoundingFunction ROUND = new RoundingFunction(PMMLFunctions.ROUND){
+
+		@Override
+		public Integer evaluate(Number number){
+			long result;
+
+			if(number instanceof Float){
+				result = (long)Math.round(number.floatValue());
+			} else
+
+			{
+				result = (long)Math.round(number.doubleValue());
+			}
+
+			return Math.toIntExact(result);
+		}
+	};
+
+	UnaryMathFunction RINT = new UnaryMathFunction(PMMLFunctions.RINT){
 
 		@Override
 		public Number evaluate(Number number){
 
 			if(number instanceof Float){
-				Math.round(number.floatValue());
+				return Math.rint(number.floatValue());
 			}
 
-			return Math.round(number.doubleValue());
-		}
-	};
-
-	MathFunction RINT = new MathFunction("x-rint"){
-
-		@Override
-		public Number evaluate(Number number){
 			return Math.rint(number.doubleValue());
 		}
 	};
 
-	ValueFunction IS_MISSING = new ValueFunction("isMissing"){
+	ValueFunction IS_MISSING = new ValueFunction(PMMLFunctions.ISMISSING){
 
 		@Override
-		public Boolean evaluate(boolean isMissing){
-			return Boolean.valueOf(isMissing);
+		public FieldValue evaluate(FieldValue value){
+			Boolean result = FieldValueUtil.isMissing(value);
+
+			return FieldValue.create(TypeInfos.CATEGORICAL_BOOLEAN, result);
 		}
 	};
 
-	ValueFunction IS_NOT_MISSING = new ValueFunction("isNotMissing"){
+	ValueFunction IS_NOT_MISSING = new ValueFunction(PMMLFunctions.ISNOTMISSING){
 
 		@Override
-		public Boolean evaluate(boolean isMissing){
-			return Boolean.valueOf(!isMissing);
+		public FieldValue evaluate(FieldValue value){
+			Boolean result = !FieldValueUtil.isMissing(value);
+
+			return FieldValue.create(TypeInfos.CATEGORICAL_BOOLEAN, result);
 		}
 	};
 
-	EqualityFunction EQUAL = new EqualityFunction("equal"){
+	ValueFunction IS_VALID = new ValueFunction(PMMLFunctions.ISVALID){
+
+		@Override
+		public FieldValue evaluate(FieldValue value){
+			Boolean result = !FieldValueUtil.isMissing(value) && value.isValid();
+
+			return FieldValue.create(TypeInfos.CATEGORICAL_BOOLEAN, result);
+		}
+	};
+
+	ValueFunction IS_NOT_VALID = new ValueFunction(PMMLFunctions.ISNOTVALID){
+
+		@Override
+		public FieldValue evaluate(FieldValue value){
+			Boolean result = !FieldValueUtil.isMissing(value) && !value.isValid();
+
+			return FieldValue.create(TypeInfos.CATEGORICAL_BOOLEAN, result);
+		}
+	};
+
+	EqualityFunction EQUAL = new EqualityFunction(PMMLFunctions.EQUAL){
 
 		@Override
 		public Boolean evaluate(boolean equals){
@@ -313,7 +371,7 @@ public interface Functions {
 		}
 	};
 
-	EqualityFunction NOT_EQUAL = new EqualityFunction("notEqual"){
+	EqualityFunction NOT_EQUAL = new EqualityFunction(PMMLFunctions.NOTEQUAL){
 
 		@Override
 		public Boolean evaluate(boolean equals){
@@ -321,7 +379,7 @@ public interface Functions {
 		}
 	};
 
-	ComparisonFunction LESS_THAN = new ComparisonFunction("lessThan"){
+	ComparisonFunction LESS_THAN = new ComparisonFunction(PMMLFunctions.LESSTHAN){
 
 		@Override
 		public Boolean evaluate(int order){
@@ -329,7 +387,7 @@ public interface Functions {
 		}
 	};
 
-	ComparisonFunction LESS_OR_EQUAL = new ComparisonFunction("lessOrEqual"){
+	ComparisonFunction LESS_OR_EQUAL = new ComparisonFunction(PMMLFunctions.LESSOREQUAL){
 
 		@Override
 		public Boolean evaluate(int order){
@@ -337,7 +395,7 @@ public interface Functions {
 		}
 	};
 
-	ComparisonFunction GREATER_THAN = new ComparisonFunction("greaterThan"){
+	ComparisonFunction GREATER_THAN = new ComparisonFunction(PMMLFunctions.GREATERTHAN){
 
 		@Override
 		public Boolean evaluate(int order){
@@ -345,7 +403,7 @@ public interface Functions {
 		}
 	};
 
-	ComparisonFunction GREATER_OR_EQUAL = new ComparisonFunction("greaterOrEqual"){
+	ComparisonFunction GREATER_OR_EQUAL = new ComparisonFunction(PMMLFunctions.GREATEROREQUAL){
 
 		@Override
 		public Boolean evaluate(int order){
@@ -353,7 +411,7 @@ public interface Functions {
 		}
 	};
 
-	BinaryBooleanFunction AND = new BinaryBooleanFunction("and"){
+	LogicalFunction AND = new LogicalFunction(PMMLFunctions.AND){
 
 		@Override
 		public Boolean evaluate(Boolean left, Boolean right){
@@ -361,7 +419,7 @@ public interface Functions {
 		}
 	};
 
-	BinaryBooleanFunction OR = new BinaryBooleanFunction("or"){
+	LogicalFunction OR = new LogicalFunction(PMMLFunctions.OR){
 
 		@Override
 		public Boolean evaluate(Boolean left, Boolean right){
@@ -369,7 +427,7 @@ public interface Functions {
 		}
 	};
 
-	UnaryBooleanFunction NOT = new UnaryBooleanFunction("not"){
+	UnaryBooleanFunction NOT = new UnaryBooleanFunction(PMMLFunctions.NOT){
 
 		@Override
 		public Boolean evaluate(Boolean value){
@@ -377,7 +435,7 @@ public interface Functions {
 		}
 	};
 
-	ValueListFunction IS_IN = new ValueListFunction("isIn"){
+	ValueSpaceFunction IS_IN = new ValueSpaceFunction(PMMLFunctions.ISIN){
 
 		@Override
 		public Boolean evaluate(boolean isIn){
@@ -385,7 +443,7 @@ public interface Functions {
 		}
 	};
 
-	ValueListFunction IS_NOT_IN = new ValueListFunction("isNotIn"){
+	ValueSpaceFunction IS_NOT_IN = new ValueSpaceFunction(PMMLFunctions.ISNOTIN){
 
 		@Override
 		public Boolean evaluate(boolean isIn){
@@ -393,7 +451,7 @@ public interface Functions {
 		}
 	};
 
-	AbstractFunction IF = new AbstractFunction("if"){
+	MultiaryFunction IF = new MultiaryFunction(PMMLFunctions.IF){
 
 		@Override
 		public FieldValue evaluate(List<FieldValue> arguments){
@@ -416,7 +474,7 @@ public interface Functions {
 		}
 	};
 
-	StringFunction UPPERCASE = new StringFunction("uppercase"){
+	UnaryStringFunction UPPERCASE = new UnaryStringFunction(PMMLFunctions.UPPERCASE){
 
 		@Override
 		public String evaluate(String value){
@@ -424,7 +482,7 @@ public interface Functions {
 		}
 	};
 
-	StringFunction LOWERCASE = new StringFunction("lowercase"){
+	UnaryStringFunction LOWERCASE = new UnaryStringFunction(PMMLFunctions.LOWERCASE){
 
 		@Override
 		public String evaluate(String value){
@@ -432,37 +490,36 @@ public interface Functions {
 		}
 	};
 
-	AbstractFunction SUBSTRING = new AbstractFunction("substring"){
+	TernaryFunction SUBSTRING = new TernaryFunction(PMMLFunctions.SUBSTRING, Arrays.asList("input", "startPos", "length")){
 
-		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 3);
+		public String evaluate(String string, int position, int length){
 
-			String string = getRequiredArgument(arguments, 0, "input").asString();
-
-			int position = getRequiredArgument(arguments, 1, "startPos").asInteger();
 			if(position < 1){
-				throw new FunctionException(this, "Invalid \'startPos\' value " + position + ". Must be equal or greater than 1");
+				throw new FunctionException(this, "Invalid \"startPos\" value " + position + ". Must be equal or greater than 1");
+			} // End if
+
+			if(length < 0){
+				throw new FunctionException(this, "Invalid \"length\" value " + length);
 			}
 
 			// "The first character of a string is located at position 1 (not position 0)"
 			int javaPosition = Math.min(position - 1, string.length());
 
-			int length = getRequiredArgument(arguments, 2, "length").asInteger();
-			if(length < 0){
-				throw new FunctionException(this, "Invalid \'length\' value " + length);
-			}
-
 			int javaLength = Math.min(length, (string.length() - javaPosition));
 
 			// This expression must never throw a StringIndexOutOfBoundsException
-			String result = string.substring(javaPosition, javaPosition + javaLength);
+			return string.substring(javaPosition, javaPosition + javaLength);
+		}
+
+		@Override
+		public FieldValue evaluate(FieldValue first, FieldValue second, FieldValue third){
+			String result = evaluate(first.asString(), second.asInteger(), third.asInteger());
 
 			return FieldValueUtil.create(TypeInfos.CATEGORICAL_STRING, result);
 		}
 	};
 
-	StringFunction TRIM_BLANKS = new StringFunction("trimBlanks"){
+	UnaryStringFunction TRIM_BLANKS = new UnaryStringFunction(PMMLFunctions.TRIMBLANKS){
 
 		@Override
 		public String evaluate(String value){
@@ -470,107 +527,109 @@ public interface Functions {
 		}
 	};
 
-	AbstractFunction CONCAT = new AbstractFunction("concat"){
+	AggregateStringFunction CONCAT = new AggregateStringFunction(PMMLFunctions.CONCAT){
 
 		@Override
 		public FieldValue evaluate(List<FieldValue> arguments){
 			checkVariableArityArguments(arguments, 2);
 
-			String result = arguments.stream()
-				.filter(Objects::nonNull)
-				.map(value -> (String)TypeUtil.cast(DataType.STRING, value.getValue()))
-				.collect(Collectors.joining());
+			StringBuilder sb = new StringBuilder();
+
+			for(int i = 0; i < arguments.size(); i++){
+				FieldValue value = getOptionalArgument(arguments, i);
+
+				if(FieldValueUtil.isMissing(value)){
+					continue;
+				}
+
+				sb.append(value.asString());
+			}
+
+			String result = sb.toString();
 
 			return FieldValueUtil.create(TypeInfos.CATEGORICAL_STRING, result);
 		}
 	};
 
-	AbstractFunction REPLACE = new AbstractFunction("replace"){
+	TernaryFunction REPLACE = new TernaryFunction(PMMLFunctions.REPLACE, Arrays.asList("input", "pattern", "replacement")){
 
-		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 3);
-
-			String input = getRequiredArgument(arguments, 0, "input").asString();
-
-			String regex = getRequiredArgument(arguments, 1, "pattern").asString();
-
+		public String evaluate(String input, String regex, String replacement){
 			Pattern pattern = RegExUtil.compile(regex, null);
 
 			Matcher matcher = pattern.matcher(input);
 
-			String replacement = getRequiredArgument(arguments, 2, "replacement").asString();
+			return matcher.replaceAll(replacement);
+		}
 
-			String result = matcher.replaceAll(replacement);
+		@Override
+		public FieldValue evaluate(FieldValue first, FieldValue second, FieldValue third){
+			String result = evaluate(first.asString(), second.asString(), third.asString());
 
 			return FieldValueUtil.create(TypeInfos.CATEGORICAL_STRING, result);
 		}
 	};
 
-	AbstractFunction MATCHES = new AbstractFunction("matches"){
+	BinaryFunction MATCHES = new BinaryFunction(PMMLFunctions.MATCHES, Arrays.asList("input", "pattern")){
 
-		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
+		public Boolean evaluate(String input, String regex){
+			Pattern pattern = RegExUtil.compile(regex, null);
 
-			String input = getRequiredArgument(arguments, 0, "input").asString();
-
-			String pattern = getRequiredArgument(arguments, 1, "pattern").asString();
-
-			Matcher matcher = Pattern.compile(pattern).matcher(input);
+			Matcher matcher = pattern.matcher(input);
 
 			// "The string is considered to match the pattern if any substring matches the pattern"
-			Boolean result = Boolean.valueOf(matcher.find());
+			return Boolean.valueOf(matcher.find());
+		}
+
+		@Override
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			Boolean result = evaluate(first.asString(), second.asString());
 
 			return FieldValueUtil.create(TypeInfos.CATEGORICAL_BOOLEAN, result);
 		}
 	};
 
-	AbstractFunction FORMAT_NUMBER = new AbstractFunction("formatNumber"){
+	BinaryFunction FORMAT_NUMBER = new BinaryFunction(PMMLFunctions.FORMATNUMBER, Arrays.asList("input", "pattern")){
 
-		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
-
-			Number number = getRequiredArgument(arguments, 0, "input").asNumber();
-
-			String pattern = getRequiredArgument(arguments, 1, "pattern").asString();
-
-			String result;
+		public String evaluate(Number input, String pattern){
 
 			// According to the java.util.Formatter javadoc, Java formatting is more strict than C's printf formatting.
 			// For example, in Java, if a conversion is incompatible with a flag, an exception will be thrown. In C's printf, inapplicable flags are silently ignored.
 			try {
-				result = String.format(pattern, number);
+				return String.format(pattern, input);
 			} catch(IllegalFormatException ife){
-				throw new FunctionException(this, "Invalid \'pattern\' value")
+				throw new FunctionException(this, "Invalid \"pattern\" value")
 					.initCause(ife);
 			}
+		}
+
+		@Override
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			String result = evaluate(first.asNumber(), second.asString());
 
 			return FieldValueUtil.create(TypeInfos.CATEGORICAL_STRING, result);
 		}
 	};
 
-	AbstractFunction FORMAT_DATETIME = new AbstractFunction("formatDatetime"){
+	BinaryFunction FORMAT_DATETIME = new BinaryFunction(PMMLFunctions.FORMATDATETIME, Arrays.asList("input", "pattern")){
+
+		public String evaluate(Date input, String pattern){
+			pattern = translatePattern(pattern);
+
+			try {
+				return String.format(pattern, input);
+			} catch(IllegalFormatException ife){
+				throw new FunctionException(this, "Invalid \"pattern\" value")
+					.initCause(ife);
+			}
+		}
 
 		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
-
-			ZonedDateTime zonedDateTime = getRequiredArgument(arguments, 0, "input").asZonedDateTime(ZoneId.systemDefault());
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			ZonedDateTime zonedDateTime = first.asZonedDateTime(ZoneId.systemDefault());
 
 			Date date = Date.from(zonedDateTime.toInstant());
 
-			String pattern = translatePattern(getRequiredArgument(arguments, 1, "pattern").asString());
-
-			String result;
-
-			try {
-				result = String.format(pattern, date);
-			} catch(IllegalFormatException ife){
-				throw new FunctionException(this, "Invalid \'pattern\' value")
-					.initCause(ife);
-			}
+			String result = evaluate(date, second.asString());
 
 			return FieldValueUtil.create(TypeInfos.CATEGORICAL_STRING, result);
 		}
@@ -597,69 +656,63 @@ public interface Functions {
 		}
 	};
 
-	AbstractFunction DATE_DAYS_SINCE_YEAR = new AbstractFunction("dateDaysSinceYear"){
+	BinaryFunction DATE_DAYS_SINCE_YEAR = new BinaryFunction(PMMLFunctions.DATEDAYSSINCEYEAR, Arrays.asList("input", "referenceYear")){
+
+		public DaysSinceDate evaluate(LocalDate input, int year){
+			return new DaysSinceDate(LocalDate.of(year, 1, 1), input);
+		}
 
 		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			DaysSinceDate result = evaluate(first.asLocalDate(), second.asInteger());
 
-			LocalDate instant = getRequiredArgument(arguments, 0, "input").asLocalDate();
-
-			int year = getRequiredArgument(arguments, 1, "referenceYear").asInteger();
-
-			DaysSinceDate period = new DaysSinceDate(LocalDate.of(year, 1, 1), instant);
-
-			return FieldValueUtil.create(TypeInfos.CONTINUOUS_INTEGER, period.intValue());
+			return FieldValueUtil.create(TypeInfos.CONTINUOUS_INTEGER, result);
 		}
 	};
 
-	AbstractFunction DATE_SECONDS_SINCE_MIDNIGHT = new AbstractFunction("dateSecondsSinceMidnight"){
+	UnaryFunction DATE_SECONDS_SINCE_MIDNIGHT = new UnaryFunction(PMMLFunctions.DATESECONDSSINCEMIDNIGHT, Arrays.asList("input")){
+
+		public SecondsSinceMidnight evaluate(LocalTime input){
+			return new SecondsSinceMidnight(input.toSecondOfDay());
+		}
 
 		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 1);
+		public FieldValue evaluate(FieldValue value){
+			SecondsSinceMidnight result = evaluate(value.asLocalTime());
 
-			LocalTime instant = getRequiredArgument(arguments, 0, "input").asLocalTime();
-
-			SecondsSinceMidnight period = new SecondsSinceMidnight(instant.toSecondOfDay());
-
-			return FieldValueUtil.create(TypeInfos.CONTINUOUS_INTEGER, period.intValue());
+			return FieldValueUtil.create(TypeInfos.CONTINUOUS_INTEGER, result);
 		}
 	};
 
-	AbstractFunction DATE_SECONDS_SINCE_YEAR = new AbstractFunction("dateSecondsSinceYear"){
+	BinaryFunction DATE_SECONDS_SINCE_YEAR = new BinaryFunction(PMMLFunctions.DATESECONDSSINCEYEAR, Arrays.asList("input", "referenceYear")){
+
+		public SecondsSinceDate evaluate(LocalDateTime input, int year){
+			return new SecondsSinceDate(LocalDate.of(year, 1, 1), input);
+		}
 
 		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			SecondsSinceDate result = evaluate(first.asLocalDateTime(), second.asInteger());
 
-			LocalDateTime instant = getRequiredArgument(arguments, 0, "input").asLocalDateTime();
-
-			int year = getRequiredArgument(arguments, 1, "referenceYear").asInteger();
-
-			SecondsSinceDate period = new SecondsSinceDate(LocalDate.of(year, 1, 1), instant);
-
-			return FieldValueUtil.create(TypeInfos.CONTINUOUS_INTEGER, period.intValue());
+			return FieldValueUtil.create(TypeInfos.CONTINUOUS_INTEGER, result);
 		}
 	};
 
-	AbstractNumericFunction HYPOT = new AbstractNumericFunction("x-hypot"){
+	BinaryFunction HYPOT = new BinaryFunction(PMMLFunctions.HYPOT){
+
+		public Double evaluate(Number x, Number y){
+			return Math.hypot(x.doubleValue(), y.doubleValue());
+		}
 
 		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
-
-			Number x = getRequiredArgument(arguments, 0).asNumber();
-
-			Number y = getRequiredArgument(arguments, 1).asNumber();
-
-			Double result = Math.hypot(x.doubleValue(), y.doubleValue());
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			Double result = evaluate(first.asNumber(), second.asNumber());
 
 			return FieldValueUtil.create(TypeInfos.CONTINUOUS_DOUBLE, result);
 		}
 	};
 
-	TrigonometricFunction SIN = new TrigonometricFunction("x-sin"){
+	TrigonometricFunction SIN = new TrigonometricFunction(PMMLFunctions.SIN){
 
 		@Override
 		public Double evaluate(Number value){
@@ -667,7 +720,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction COS = new TrigonometricFunction("x-cos"){
+	TrigonometricFunction COS = new TrigonometricFunction(PMMLFunctions.COS){
 
 		@Override
 		public Double evaluate(Number value){
@@ -675,7 +728,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction TAN = new TrigonometricFunction("x-tan"){
+	TrigonometricFunction TAN = new TrigonometricFunction(PMMLFunctions.TAN){
 
 		@Override
 		public Double evaluate(Number value){
@@ -683,7 +736,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction ASIN = new TrigonometricFunction("x-asin"){
+	TrigonometricFunction ASIN = new TrigonometricFunction(PMMLFunctions.ASIN){
 
 		@Override
 		public Double evaluate(Number value){
@@ -691,7 +744,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction ACOS = new TrigonometricFunction("x-acos"){
+	TrigonometricFunction ACOS = new TrigonometricFunction(PMMLFunctions.ACOS){
 
 		@Override
 		public Double evaluate(Number value){
@@ -699,7 +752,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction ATAN = new TrigonometricFunction("x-atan"){
+	TrigonometricFunction ATAN = new TrigonometricFunction(PMMLFunctions.ATAN){
 
 		@Override
 		public Double evaluate(Number value){
@@ -707,17 +760,15 @@ public interface Functions {
 		}
 	};
 
-	AbstractNumericFunction ATAN2 = new AbstractNumericFunction("x-atan2"){
+	BinaryFunction ATAN2 = new BinaryFunction(PMMLFunctions.ATAN2){
+
+		public Double evaluate(Number y, Number x){
+			return Math.atan2(y.doubleValue(), x.doubleValue());
+		}
 
 		@Override
-		public FieldValue evaluate(List<FieldValue> arguments){
-			checkFixedArityArguments(arguments, 2);
-
-			Number y = getRequiredArgument(arguments, 0).asNumber();
-
-			Number x = getRequiredArgument(arguments, 1).asNumber();
-
-			Double result = Math.atan2(y.doubleValue(), x.doubleValue());
+		public FieldValue evaluate(FieldValue first, FieldValue second){
+			Double result = evaluate(first.asNumber(), second.asNumber());
 			if(result.isNaN()){
 				throw new NaNResultException();
 			}
@@ -726,7 +777,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction SINH = new TrigonometricFunction("x-sinh"){
+	TrigonometricFunction SINH = new TrigonometricFunction(PMMLFunctions.SINH){
 
 		@Override
 		public Double evaluate(Number value){
@@ -734,7 +785,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction COSH = new TrigonometricFunction("x-cosh"){
+	TrigonometricFunction COSH = new TrigonometricFunction(PMMLFunctions.COSH){
 
 		@Override
 		public Double evaluate(Number value){
@@ -742,7 +793,7 @@ public interface Functions {
 		}
 	};
 
-	TrigonometricFunction TANH = new TrigonometricFunction("x-tanh"){
+	TrigonometricFunction TANH = new TrigonometricFunction(PMMLFunctions.TANH){
 
 		@Override
 		public Double evaluate(Number value){

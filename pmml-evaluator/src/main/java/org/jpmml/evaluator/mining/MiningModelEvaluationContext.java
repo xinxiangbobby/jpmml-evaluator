@@ -27,7 +27,6 @@ import org.dmg.pmml.FieldName;
 import org.dmg.pmml.OutputField;
 import org.dmg.pmml.mining.Segment;
 import org.jpmml.evaluator.ModelEvaluationContext;
-import org.jpmml.evaluator.ModelEvaluator;
 
 public class MiningModelEvaluationContext extends ModelEvaluationContext {
 
@@ -37,11 +36,7 @@ public class MiningModelEvaluationContext extends ModelEvaluationContext {
 
 
 	public MiningModelEvaluationContext(MiningModelEvaluator miningModelEvaluator){
-		this(miningModelEvaluator, null);
-	}
-
-	public MiningModelEvaluationContext(MiningModelEvaluator miningModelEvaluator, MiningModelEvaluationContext parent){
-		super(miningModelEvaluator, parent);
+		super(miningModelEvaluator);
 
 		BiMap<String, Segment> entityRegistry = miningModelEvaluator.getEntityRegistry();
 
@@ -83,10 +78,6 @@ public class MiningModelEvaluationContext extends ModelEvaluationContext {
 		return this.outputFields.get(name);
 	}
 
-	void putOutputField(OutputField outputField){
-		putOutputField(outputField.getName(), outputField);
-	}
-
 	void putOutputField(FieldName name, OutputField outputField){
 
 		if(this.outputFields == null){
@@ -97,8 +88,8 @@ public class MiningModelEvaluationContext extends ModelEvaluationContext {
 	}
 
 	public DerivedField getLocalDerivedField(FieldName name){
-		ModelEvaluator<?> modelEvaluator = getModelEvaluator();
+		MiningModelEvaluator miningModelEvaluator = getModelEvaluator();
 
-		return modelEvaluator.getLocalDerivedField(name);
+		return miningModelEvaluator.getLocalDerivedField(name);
 	}
 }

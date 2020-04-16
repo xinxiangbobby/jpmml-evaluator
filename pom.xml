@@ -10,7 +10,7 @@
 
 	<groupId>org.jpmml</groupId>
 	<artifactId>jpmml-evaluator</artifactId>
-	<version>1.4-SNAPSHOT</version>
+	<version>1.5-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<name>JPMML-Evaluator</name>
@@ -39,14 +39,15 @@
 
 	<modules>
 		<!-- 
-		The pmml-evaluator module has compile-time (but not run-time) dependence on the pmml-evaluator-processor module.
+		The pmml-evaluator-reporting module has compile-time (but not run-time) dependence on the pmml-evaluator-reporting-processor module.
 		The reactor is informed about it by ordering their <module> elements appropriately.
 		-->
-		<module>pmml-evaluator-processor</module>
+		<module>pmml-evaluator-reporting-processor</module>
 		<module>pmml-evaluator</module>
 		<module>pmml-evaluator-example</module>
 		<module>pmml-evaluator-extension</module>
 		<module>pmml-evaluator-jacoco</module>
+		<module>pmml-evaluator-reporting</module>
 		<module>pmml-evaluator-test</module>
 		<module>pmml-knime</module>
 		<module>pmml-rapidminer</module>
@@ -70,73 +71,78 @@
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-evaluator</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-evaluator-example</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-evaluator-extension</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-evaluator-jacoco</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-evaluator-processor</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<artifactId>pmml-evaluator-reporting</artifactId>
+				<version>1.5-SNAPSHOT</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jpmml</groupId>
+				<artifactId>pmml-evaluator-reporting-processor</artifactId>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-evaluator-test</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-knime</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-rapidminer</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-rattle</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-sas</artifactId>
-				<version>1.4-SNAPSHOT</version>
+				<version>1.5-SNAPSHOT</version>
 			</dependency>
 
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-agent</artifactId>
-				<version>1.4.7</version>
+				<version>1.5.1</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-model</artifactId>
-				<version>1.4.7</version>
+				<version>1.5.1</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-model-metro</artifactId>
-				<version>1.4.7</version>
+				<version>1.5.1</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-model-moxy</artifactId>
-				<version>1.4.7</version>
+				<version>1.5.1</version>
 				<exclusions>
 					<exclusion>
 						<groupId>org.glassfish.jaxb</groupId>
@@ -154,7 +160,7 @@
 			<dependency>
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
-				<version>[19.0, 27.0-jre]</version>
+				<version>[19.0, 28.2-jar]</version>
 				<exclusions>
 					<exclusion>
 						<groupId>com.google.code.findbugs</groupId>
@@ -164,10 +170,12 @@
 						<groupId>com.google.errorprone</groupId>
 						<artifactId>error_prone_annotations</artifactId>
 					</exclusion>
+					<!--
 					<exclusion>
 						<groupId>com.google.guava</groupId>
 						<artifactId>failureaccess</artifactId>
 					</exclusion>
+					-->
 					<exclusion>
 						<groupId>com.google.guava</groupId>
 						<artifactId>listenablefuture</artifactId>
@@ -178,11 +186,7 @@
 					</exclusion>
 					<exclusion>
 						<groupId>org.checkerframework</groupId>
-						<artifactId>checker-compat-qual</artifactId>
-					</exclusion>
-					<exclusion>
-						<groupId>org.checkerframework</groupId>
-						<artifactId>checker-qual</artifactId>
+						<artifactId>*</artifactId>
 					</exclusion>
 					<exclusion>
 						<groupId>org.codehaus.mojo</groupId>
@@ -194,7 +198,7 @@
 			<dependency>
 				<groupId>io.dropwizard.metrics</groupId>
 				<artifactId>metrics-core</artifactId>
-				<version>4.0.2</version>
+				<version>4.1.2</version>
 			</dependency>
 
 			<dependency>
@@ -206,12 +210,12 @@
 			<dependency>
 				<groupId>org.slf4j</groupId>
 				<artifactId>slf4j-api</artifactId>
-				<version>1.7.25</version>
+				<version>1.7.30</version>
 			</dependency>
 			<dependency>
 				<groupId>org.slf4j</groupId>
 				<artifactId>slf4j-jdk14</artifactId>
-				<version>1.7.25</version>
+				<version>1.7.30</version>
 			</dependency>
 
 			<dependency>
@@ -228,7 +232,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.8.0</version>
+				<version>3.8.1</version>
 				<configuration>
 					<source>1.8</source>
 					<target>1.8</target>
@@ -246,9 +250,6 @@
 						</goals>
 						<configuration>
 							<rules>
-								<requireJavaVersion>
-									<version>1.8</version>
-								</requireJavaVersion>
 								<requireMavenVersion>
 									<version>3.2</version>
 								</requireMavenVersion>
@@ -260,7 +261,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.0.1</version>
+				<version>3.1.1</version>
 				<configuration>
 					<javadocVersion>1.8</javadocVersion>
 				</configuration>
@@ -278,7 +279,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
-				<version>3.0.1</version>
+				<version>3.2.1</version>
 				<executions>
 					<execution>
 						<id>attach-sources</id>
@@ -291,7 +292,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>2.22.1</version>
+				<version>2.22.2</version>
 				<configuration>
 					<argLine>${jacoco.agent}</argLine>
 					<trimStackTrace>false</trimStackTrace>
@@ -300,7 +301,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.2</version>
+				<version>0.8.5</version>
 				<executions>
 					<execution>
 						<id>pre-unit-test</id>

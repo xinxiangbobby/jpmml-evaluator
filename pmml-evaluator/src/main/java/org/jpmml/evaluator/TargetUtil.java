@@ -22,15 +22,30 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.dmg.pmml.DataField;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.FieldName;
+import org.dmg.pmml.PMMLAttributes;
 import org.dmg.pmml.Target;
 import org.dmg.pmml.TargetValue;
 
 public class TargetUtil {
 
 	private TargetUtil(){
+	}
+
+	static
+	public void computeResult(DataType dataType, Regression<?> regression){
+		regression.computeResult(dataType);
+	}
+
+	static
+	public void computeResult(DataType dataType, Classification<?, ?> classification){
+		classification.computeResult(dataType);
+	}
+
+	static
+	public void computeResult(DataType dataType, Vote vote){
+		vote.computeResult(dataType);
 	}
 
 	static
@@ -45,13 +60,11 @@ public class TargetUtil {
 			}
 		}
 
-		return Collections.singletonMap(targetField.getName(), null);
+		return Collections.singletonMap(targetField.getFieldName(), null);
 	}
 
 	static
 	public <V extends Number> Map<FieldName, ?> evaluateRegression(TargetField targetField, Value<V> value){
-		DataField dataField = targetField.getField();
-
 		value = evaluateRegressionInternal(targetField, value);
 
 		if(value instanceof HasReport){
@@ -60,18 +73,16 @@ public class TargetUtil {
 			return evaluateRegression(targetField, result);
 		}
 
-		Object result = TypeUtil.cast(dataField.getDataType(), value.getValue());
+		Object result = TypeUtil.cast(targetField.getDataType(), value.getValue());
 
-		return Collections.singletonMap(targetField.getName(), result);
+		return Collections.singletonMap(targetField.getFieldName(), result);
 	}
 
 	static
 	public <V extends Number> Map<FieldName, ? extends Regression<V>> evaluateRegression(TargetField targetField, Regression<V> regression){
-		DataField dataField = targetField.getField();
+		regression.computeResult(targetField.getDataType());
 
-		regression.computeResult(dataField.getDataType());
-
-		return Collections.singletonMap(targetField.getName(), regression);
+		return Collections.singletonMap(targetField.getFieldName(), regression);
 	}
 
 	static
@@ -87,15 +98,13 @@ public class TargetUtil {
 
 	static
 	public Map<FieldName, ? extends Vote> evaluateVote(TargetField targetField, Vote vote){
-		DataField dataField = targetField.getField();
+		vote.computeResult(targetField.getDataType());
 
-		vote.computeResult(dataField.getDataType());
-
-		return Collections.singletonMap(targetField.getName(), vote);
+		return Collections.singletonMap(targetField.getFieldName(), vote);
 	}
 
 	static
-	public <V extends Number> Map<FieldName, ? extends Classification<V>> evaluateClassificationDefault(ValueFactory<V> valueFactory, TargetField targetField){
+	public <V extends Number> Map<FieldName, ? extends Classification<?, V>> evaluateClassificationDefault(ValueFactory<V> valueFactory, TargetField targetField){
 		Target target = targetField.getTarget();
 
 		if(target != null && target.hasTargetValues()){
@@ -106,36 +115,28 @@ public class TargetUtil {
 			}
 		}
 
-		return Collections.singletonMap(targetField.getName(), null);
+		return Collections.singletonMap(targetField.getFieldName(), null);
 	}
 
 	static
-	public <V extends Number> Map<FieldName, ? extends Classification<V>> evaluateClassification(TargetField targetField, Classification<V> classification){
-		DataField dataField = targetField.getField();
+	public <V extends Number> Map<FieldName, ? extends Classification<?, V>> evaluateClassification(TargetField targetField, Classification<?, V> classification){
+		classification.computeResult(targetField.getDataType());
 
-		classification.computeResult(dataField.getDataType());
-
-		return Collections.singletonMap(targetField.getName(), classification);
+		return Collections.singletonMap(targetField.getFieldName(), classification);
 	}
 
 	static
 	public <V extends Number> Value<V> processValue(Target target, Value<V> value){
-		Double min = target.getMin();
-		Double max = target.getMax();
+		Number min = target.getMin();
+		Number max = target.getMax();
 
 		if(min != null || max != null){
 			value.restrict((min != null ? min : Double.NEGATIVE_INFINITY), (max != null ? max : Double.POSITIVE_INFINITY));
 		}
 
-		double rescaleFactor = target.getRescaleFactor();
-		if(rescaleFactor != 1d){
-			value.multiply(rescaleFactor);
-		}
-
-		double rescaleConstant = target.getRescaleConstant();
-		if(rescaleConstant != 0d){
-			value.add(rescaleConstant);
-		}
+		value
+			.multiply(target.getRescaleFactor())
+			.add(target.getRescaleConstant());
 
 		Target.CastInteger castInteger = target.getCastInteger();
 		if(castInteger == null){
@@ -160,12 +161,12 @@ public class TargetUtil {
 
 		List<TargetValue> targetValues = target.getTargetValues();
 		for(TargetValue targetValue : targetValues){
-			String stringValue = targetValue.getValue();
-			if(stringValue == null){
+			Object simpleValue = targetValue.getValue();
+			if(simpleValue == null){
 				throw new MissingAttributeException(targetValue, PMMLAttributes.TARGETVALUE_VALUE);
 			} // End if
 
-			if((value).equals(TypeUtil.parse(dataType, stringValue))){
+			if((value).equals(TypeUtil.parseOrCast(dataType, simpleValue))){
 				return targetValue;
 			}
 		}
@@ -187,7 +188,7 @@ public class TargetUtil {
 
 		TargetValue targetValue = targetValues.get(0);
 
-		Double defaultValue = targetValue.getDefaultValue();
+		Number defaultValue = targetValue.getDefaultValue();
 
 		// "The value and priorProbability attributes are used only if the optype of the field is categorical or ordinal"
 		if(targetValue.getValue() != null || targetValue.getPriorProbability() != null){
@@ -208,18 +209,18 @@ public class TargetUtil {
 			return null;
 		}
 
-		ValueMap<String, V> values = new ValueMap<>();
+		ValueMap<Object, V> values = new ValueMap<>();
 
 		Value<V> sum = valueFactory.newValue();
 
 		List<TargetValue> targetValues = target.getTargetValues();
 		for(TargetValue targetValue : targetValues){
-			String targetCategory = targetValue.getValue();
+			Object targetCategory = targetValue.getValue();
 			if(targetCategory == null){
 				throw new MissingAttributeException(targetValue, PMMLAttributes.TARGETVALUE_VALUE);
 			}
 
-			Double probability = targetValue.getPriorProbability();
+			Number probability = targetValue.getPriorProbability();
 			if(probability == null){
 				throw new MissingAttributeException(targetValue, PMMLAttributes.TARGETVALUE_PRIORPROBABILITY);
 			}
@@ -236,9 +237,9 @@ public class TargetUtil {
 			sum.add(value);
 		}
 
-		if(!sum.equals(1d)){
+		if(!sum.isOne()){
 
-			if(sum.equals(0d)){
+			if(sum.isZero()){
 				throw new UndefinedResultException();
 			}
 

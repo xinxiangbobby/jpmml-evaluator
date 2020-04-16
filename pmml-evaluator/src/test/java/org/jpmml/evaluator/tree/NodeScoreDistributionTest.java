@@ -23,6 +23,7 @@ import java.util.List;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
+import org.dmg.pmml.tree.LeafNode;
 import org.dmg.pmml.tree.Node;
 import org.jpmml.evaluator.DoubleValue;
 import org.jpmml.evaluator.ValueMap;
@@ -34,12 +35,11 @@ public class NodeScoreDistributionTest {
 
 	@Test
 	public void getProbability(){
-		Node node = new Node()
-			.setScore("ham");
+		Node node = new LeafNode("ham", null);
 
 		BiMap<String, Node> entityRegistry = ImmutableBiMap.of("1", node);
 
-		NodeScoreDistribution<Double> classification = new NodeScoreDistribution<Double>(new ValueMap<String, Double>(), node){
+		NodeScoreDistribution<Double> classification = new NodeScoreDistribution<Double>(new ValueMap<Object, Double>(), node){
 
 			@Override
 			public BiMap<String, Node> getEntityRegistry(){

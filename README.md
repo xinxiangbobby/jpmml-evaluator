@@ -15,39 +15,41 @@ Java Evaluator API for Predictive Model Markup Language (PMML).
     + [Querying the "data schema" of models](#querying-the-data-schema-of-models)
     + [Evaluating models](#evaluating-models)
 - [Example applications](#example-applications)
+- [Documentation](#documentation)
 - [Support](#support)
 - [License](#license)
 - [Additional information](#additional-information)
 
 # Features #
 
-JPMML-Evaluator is *de facto* the reference implementation of the PMML specification versions 3.0, 3.1, 3.2, 4.0, 4.1, 4.2 and 4.3 for the Java/JVM platform:
+JPMML-Evaluator is *de facto* the reference implementation of the PMML specification versions 3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 4.3 and 4.4 for the Java/JVM platform:
 
-* Pre-processing of input fields according to the [DataDictionary](http://www.dmg.org/pmml/v4-3/DataDictionary.html) and [MiningSchema](http://www.dmg.org/pmml/v4-3/MiningSchema.html) elements:
+* Pre-processing of input fields according to the [DataDictionary](http://www.dmg.org/pmml/v4-4/DataDictionary.html) and [MiningSchema](http://www.dmg.org/pmml/v4-4/MiningSchema.html) elements:
   * Complete data type system.
   * Complete operational type system.
   * Treatment of outlier, missing and/or invalid values.
 * Model evaluation:
-  * [Association rules](http://www.dmg.org/pmml/v4-3/AssociationRules.html)
-  * [Cluster model](http://www.dmg.org/pmml/v4-3/ClusteringModel.html)
-  * [General regression](http://www.dmg.org/pmml/v4-3/GeneralRegression.html)
-  * [Naive Bayes](http://www.dmg.org/pmml/v4-3/NaiveBayes.html)
-  * [k-Nearest neighbors](http://www.dmg.org/pmml/v4-3/KNN.html)
-  * [Neural network](http://www.dmg.org/pmml/v4-3/NeuralNetwork.html)
-  * [Regression](http://www.dmg.org/pmml/v4-3/Regression.html)
-  * [Rule set](http://www.dmg.org/pmml/v4-3/RuleSet.html)
-  * [Scorecard](http://www.dmg.org/pmml/v4-3/Scorecard.html)
-  * [Support Vector Machine](http://www.dmg.org/pmml/v4-3/SupportVectorMachine.html)
-  * [Tree model](http://www.dmg.org/pmml/v4-3/TreeModel.html)
-  * [Ensemble model](http://www.dmg.org/pmml/v4-3/MultipleModels.html)
-* Post-processing of target fields according to the [Targets](http://www.dmg.org/pmml/v4-3/Targets.html) element:
+  * [Association rules](http://www.dmg.org/pmml/v4-4/AssociationRules.html)
+  * [Cluster model](http://www.dmg.org/pmml/v4-4/ClusteringModel.html)
+  * [General regression](http://www.dmg.org/pmml/v4-4/GeneralRegression.html)
+  * [Naive Bayes](http://www.dmg.org/pmml/v4-4/NaiveBayes.html)
+  * [k-Nearest neighbors](http://www.dmg.org/pmml/v4-4/KNN.html)
+  * [Neural network](http://www.dmg.org/pmml/v4-4/NeuralNetwork.html)
+  * [Regression](http://www.dmg.org/pmml/v4-4/Regression.html)
+  * [Rule set](http://www.dmg.org/pmml/v4-4/RuleSet.html)
+  * [Scorecard](http://www.dmg.org/pmml/v4-4/Scorecard.html)
+  * [Support Vector Machine](http://www.dmg.org/pmml/v4-4/SupportVectorMachine.html)
+  * [Tree model](http://www.dmg.org/pmml/v4-4/TreeModel.html)
+  * [Ensemble model](http://www.dmg.org/pmml/v4-4/MultipleModels.html)
+* Post-processing of target fields according to the [Targets](http://www.dmg.org/pmml/v4-4/Targets.html) element:
   * Rescaling and/or casting regression results.
   * Replacing a missing regression result with the default value.
   * Replacing a missing classification result with the map of prior probabilities.
-* Calculation of auxiliary output fields according to the [Output](http://www.dmg.org/pmml/v4-3/Output.html) element:
+* Calculation of auxiliary output fields according to the [Output](http://www.dmg.org/pmml/v4-4/Output.html) element:
   * Over 20 different result feature types.
-* Model verification according to the [ModelVerification](http://www.dmg.org/pmml/v4-3/ModelVerification.html) element.
+* Model verification according to the [ModelVerification](http://www.dmg.org/pmml/v4-4/ModelVerification.html) element.
 * Vendor extensions:
+  * Memory and security sandboxing.
   * Java-backed model, expression and predicate types - integrate any 3rd party Java library into PMML data flow.
   * MathML prediction reports.
 
@@ -89,18 +91,18 @@ JPMML-Evaluator is fast and memory efficient. It can deliver one million scoring
 
 JPMML-Evaluator library JAR files (together with accompanying Java source and Javadocs JAR files) are released via [Maven Central Repository](https://repo1.maven.org/maven2/org/jpmml/).
 
-The current version is **1.4.5** (31 December, 2018).
+The current version is **1.4.15** (2 February, 2020).
 
 ```xml
 <dependency>
 	<groupId>org.jpmml</groupId>
 	<artifactId>pmml-evaluator</artifactId>
-	<version>1.4.5</version>
+	<version>1.4.15</version>
 </dependency>
 <dependency>
 	<groupId>org.jpmml</groupId>
 	<artifactId>pmml-evaluator-extension</artifactId>
-	<version>1.4.5</version>
+	<version>1.4.15</version>
 </dependency>
 ```
 
@@ -111,6 +113,7 @@ Core types:
 * Interface `org.jpmml.evaluator.EvaluatorBuilder`
   * Class `org.jpmml.evaluator.ModelEvaluatorBuilder` - Builds a `ModelEvaluator` instance based on an `org.dmg.pmml.PMML` instance
     * Class `org.jpmml.evaluator.LoadingModelEvaluatorBuilder` - Builds a `ModelEvaluator` instance from a PMML byte stream or a PMML file
+    * Class `org.jpmml.evaluator.ServiceLoadingModelEvaluatorBuilder` - Builds a `ModelEvaluator` instance from a PMML service provider JAR file
 * Interface `org.jpmml.evaluator.Evaluator`
   * Abstract class `org.jpmml.evaluator.ModelEvaluator` - Implements model evaluator functionality based on an `org.dmg.pmml.Model` instance
     * Classes `org.jpmml.evaluator.<Model>Evaluator` (`GeneralRegressionModelEvaluator`, `MiningModelEvaluator`, `NeuralNetworkEvaluator`, `RegressionEvaluator`, `TreeModelEvaluator`, `SupportVectorMachineEvaluator` etc.)
@@ -120,10 +123,12 @@ Core types:
     * Class `org.jpmml.evaluator.TargetField` - Describes a primary model result field
     * Class `org.jpmml.evaluator.OutputField` - Describes a secondary model result field
 * Abstract class `org.jpmml.evaluator.FieldValue`
-  * Class `org.jpmml.evaluator.ContinuousValue`
-  * Abstract class `org.jpmml.evaluator.DiscreteValue`
-    * Class `org.jpmml.evaluator.CategoricalValue`
-    * Class `org.jpmml.evaluator.OrdinalValue`
+  * Class `org.jpmml.evaluator.CollectionValue`
+  * Abstract class `org.jpmml.evaluator.ScalarValue`
+    * Class `org.jpmml.evaluator.ContinuousValue`
+    * Abstract class `org.jpmml.evaluator.DiscreteValue`
+      * Class `org.jpmml.evaluator.CategoricalValue`
+      * Class `org.jpmml.evaluator.OrdinalValue`
 * Utility class `org.jpmml.evaluator.EvaluatorUtil`
 * Utility class `org.jpmml.evaluator.FieldValueUtil`
 
@@ -225,7 +230,7 @@ while(true){
 	Map<FieldName, ?> results = evaluator.evaluate(arguments);
 
 	// Decoupling results from the JPMML-Evaluator runtime environment
-	Map<String, ?> resultRecord = EvaluatorUtil.decode(results);
+	Map<String, ?> resultRecord = EvaluatorUtil.decodeAll(results);
 
 	// Writing a record to the data sink
 	writeRecord(resultRecord);
@@ -239,76 +244,53 @@ evaluator = null;
 
 ### Loading models ###
 
-JPMML-Evaluator depends on the [JPMML-Model](https://github.com/jpmml/jpmml-model) library for PMML class model.
-
-Loading a PMML schema version 3.X or 4.X document into an `org.dmg.pmml.PMML` instance:
-```java
-org.dmg.pmml.PMML pmml;
-
-try(InputStream is = ...){
-	pmml = org.jpmml.model.PMMLUtil.unmarshal(is);
-}
-```
-
-The newly loaded `PMML` instance should tailored by applying appropriate `org.dmg.pmml.Visitor` implementation classes to it:
-* `org.jpmml.model.visitors.LocatorTransformer`. Transforms SAX Locator information to Java serializable representation. Recommended for development and testing environments.
-* `org.jpmml.model.visitors.LocatorNullifier`. Removes SAX Locator information. Recommended for production environments.
-* `org.jpmml.model.visitors.<Type>Interner`. Replaces all occurrences of the same PMML attribute value with the singleton attribute value.
-* `org.jpmml.evaluator.visitors.<Element>Optimizer`. Pre-parses a PMML element.
-* `org.jpmml.evaluator.visitors.<Element>Interner`. Replaces all occurrences of the same PMML element with the singleton element.
-
-To facilitate their discovery and use, visitor classes have been grouped into visitor battery classes:
-* `org.jpmml.model.visitors.AttributeInternerBattery`
-* `org.jpmml.model.visitors.ListFinalizerBattery`
-* `org.jpmml.evaluator.visitors.ElementInternerBattery`
-* `org.jpmml.evaluator.visitors.ElementOptimizerBattery`
-
-Creating and applying a custom visitor battery to reduce the memory consumption of a `PMML` instance in production environment:
-```java
-org.jpmml.model.VisitorBattery visitorBattery = new org.jpmml.model.VisitorBattery();
-
-// Getting rid of SAX Locator information
-visitorBattery.add(LocatorNullifier.class);
-
-// Pre-parsing PMML elements
-visitorBattery.addAll(new ElementOptimizerBattery());
-
-// Getting rid of duplicate PMML attribute values and PMML elements
-visitorBattery.addAll(new AttributeInternerBattery());
-visitorBattery.addAll(new ElementInternerBattery());
-
-// Freezing the final representation of PMML elements
-visitorBattery.addAll(new ListFinalizerBattery());
-
-visitorBattery.applyTo(pmml);
-```
-
 The PMML standard defines large number of model types.
 The evaluation logic for each model type is encapsulated into a corresponding `ModelEvaluator` subclass.
 
-Even though `ModelEvaluator` subclasses can be instantiated directly, the recommended approach is to follow the Builder design pattern as implemented by the `ModelEvaluatorBuilder` builder class.
+Even though `ModelEvaluator` subclasses can be instantiated and configured directly, the recommended approach is to follow the Builder design pattern as implemented by the `ModelEvaluatorBuilder` builder class.
 
-Creating and configuring a `ModelEvaluatorBuilder` instance:
+A model evaluator builder provides configuration and loading services.
 
+The default configuration corresponds to most common needs.
+It can be overriden to customize the behaviour of model evaluators for more specific needs.
+A model evaluator is given a copy of the configuration that was effective when the `ModelEvaluatorBuilder#build()` method was invoked. It is not affected by later configuration changes.
+
+For example, creating two differently configured model evaluators from a `PMML` instance:
 ```java
+import org.jpmml.evaluator.reporting.ReportingValueFactoryFactory
+
+PMML pmml = ...;
+
 ModelEvaluatorBuilder modelEvaluatorBuilder = new ModelEvaluatorBuilder(pmml);
-	// Activate the generation of MathML prediction reports
-	//.setValueFactoryFactory(org.jpmml.evaluator.ReportingValueFactoryFactory.newInstance());
+
+Evaluator evaluator = modelEvaluatorBuilder.build();
+
+// Activate the generation of MathML prediction reports
+modelEvaluatorBuilder.setValueFactoryFactory(ReportingValueFactoryFactory.newInstance());
+
+Evaluator reportingEvaluator = modelEvaluatorBuilder.build();
 ```
 
-By default, the model evaluator builder selects the first scorable model from the `PMML` instance, and builds a corresponding `ModelEvaluator` instance.
-However, in order to promote loose coupling, it is advisable to cast the result to a much simplified `Evaluator` instance.
+Configurations and model evaluators are fairly lightweight, which makes them cheap to create and destroy.
+However, for maximum performance, it is advisable to maintain a one-to-one mapping between `PMML`, `ModelEvaluatorBuilder` and `ModelEvaluator` instances (ie. an application should load a PMML byte stream or file exactly once, and then maintain and reuse the resulting model evaluator as long as needed).
 
-Building an `Evaluator` instance:
+Some `ModelEvaluator` subclasses contain static caches that are lazily populated on a `PMML` instance basis.
+This may cause the first `ModelEvaluator#evaluate(Map<FieldName, ?>)` method invocation to take somewhat longer to complete (relative to all the subsequent method invocations).
+If the model contains model verification data, then this "warm-up cost" is paid once and for all during the initial `ModelEvaluator#verify()` method invocation.
 
-```java
-Evaluator evaluator = (Evaluator)modelEvaluatorBuilder.build();
-```
+### Thread safety ###
 
-Model evaluator instances are fairly lightweight, which makes them cheap to create and destroy.
-Nevertheless, long-running applications should maintain a one-to-one mapping between `PMML` and `Evaluator` instances for better performance.
+The `ModelEvaluatorBuilder` base class is thread safe.
+It is permitted to construct and configure a central `ModelEvaluatorBuilder` instance, and invoke its `ModelEvaluatorBuilder#build()` method concurrently.
 
-Model evaluator classes follow functional programming principles and are completely thread safe.
+Some `ModelEvaluatorBuilder` subclasses may extend the base class with functionality that is not thread safe.
+The case in point are all sorts of "loading" implementations, which modify the value of `ModelEvaluatorBuilder#pmml` and/or `ModelEvaluatorBuilder#model` fields.
+
+The `ModelEvaluator` base class and all its subclasses are completely thread safe.
+It is permitted to share a central `ModelEvaluator` instance between any number of threads, and invoke its `ModelEvaluator#evaluate(Map<FieldName, ?>)` method concurrently.
+
+The JPMML-Evaluator library follow functional programming principles.
+In a multi-threaded environment, its data throughput capabilities should scale linearly with respect to the number of threads.
 
 ### Querying the "data schema" of models ###
 
@@ -354,10 +336,12 @@ for(TargetField targetField : targetFields){
 			break;
 		case CATEGORICAL:
 		case ORDINAL:
-			List<String> categories = targetField.getCategories();
-			for(String category : categories){
-				Object validTargetValue = TypeUtil.parse(dataType, category);
-			}
+			List<?> validTargetValues = targetField.getDiscreteDomain();
+
+			// The list of target category values for querying HasCategoricalResults subinterfaces (HasProbability, HasConfidence etc).
+			// The default element type is String.
+			// If the PMML instance is pre-parsed, then the element type changes to the appropriate Java primitive type
+			List<?> categories = targetField.getCategories();
 			break;
 		default:
 			break;
@@ -443,12 +427,15 @@ if(targetValue instanceof HasEntityId){
 	BiMap<String, ? extends Entity> entities = hasEntityRegistry.getEntityRegistry();
 
 	Entity winner = entities.get(hasEntityId.getEntityId());
+}
 
-	// Test for "probability" result feature
-	if(targetValue instanceof HasProbability){
-		HasProbability hasProbability = (HasProbability)targetValue;
+// Test for "probability" result feature
+if(targetValue instanceof HasProbability){
+	HasProbability hasProbability = (HasProbability)targetValue;
 
-		Double winnerProbability = hasProbability.getProbability(winner.getId());
+	Set<?> categories = hasProbability.getCategories();
+	for(Object category : categories){
+		Double categoryProbability = hasProbability.getProbability(category);
 	}
 }
 ```
@@ -483,30 +470,41 @@ This module can be built using [Apache Maven](https://maven.apache.org/):
 mvn clean install
 ```
 
-The resulting uber-JAR file `target/pmml-evaluator-executable-1.4-SNAPSHOT.jar` contains the following command-line applications:
+The resulting uber-JAR file `target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar` contains the following command-line applications:
 * `org.jpmml.evaluator.EvaluationExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/EvaluationExample.java).
 * `org.jpmml.evaluator.RecordCountingExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/RecordCountingExample.java).
 * `org.jpmml.evaluator.TestingExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/TestingExample.java).
 
 Evaluating model `model.pmml` with data records from `input.csv`. The predictions are stored to `output.csv`:
 ```
-java -cp target/pmml-evaluator-executable-1.4-SNAPSHOT.jar org.jpmml.evaluator.EvaluationExample --model model.pmml --input input.csv --output output.csv
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.EvaluationExample --model model.pmml --input input.csv --output output.csv
 ```
 
 Evaluating model `model.pmml` with data records from `input.csv`. The predictions are verified against data records from `expected-output.csv`:
 ```
-java -cp target/pmml-evaluator-executable-1.4-SNAPSHOT.jar org.jpmml.evaluator.TestingExample --model model.pmml --input input.csv --expected-output expected-output.csv
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.TestingExample --model model.pmml --input input.csv --expected-output expected-output.csv
 ```
 
 Enhancing model `model.pmml` with verification data records from `input_expected-output.csv`:
 ```
-java -cp target/pmml-evaluator-executable-1.4-SNAPSHOT.jar org.jpmml.evaluator.EnhancementExample --model model.pmml --verification input_expected_output.csv
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.EnhancementExample --model model.pmml --verification input_expected_output.csv
 ```
 
 Getting help:
 ```
-java -cp target/example-1.4-SNAPSHOT.jar <application class name> --help
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar <application class name> --help
 ```
+
+# Documentation #
+
+Up-to-date:
+
+* [Tracing and reporting predictions](https://openscoring.io/blog/2019/02/26/jpmml_evaluator_api_tracing_reporting_predictions/)
+* [Upgrading from the Factory pattern to the Builder pattern](https://openscoring.io/blog/2018/12/06/jpmml_evaluator_api_builder_pattern/)
+
+Slightly outdated:
+
+* [Testing PMML applications](https://openscoring.io/blog/2014/05/12/testing_pmml_applications/)
 
 # Support #
 
@@ -514,10 +512,14 @@ Limited public support is available via the [JPMML mailing list](https://groups.
 
 # License #
 
-JPMML-Evaluator is dual-licensed under the [GNU Affero General Public License (AGPL) version 3.0](https://www.gnu.org/licenses/agpl-3.0.html), and a commercial license.
+JPMML-Evaluator is licensed under the terms and conditions of the [GNU Affero General Public License, Version 3.0](https://www.gnu.org/licenses/agpl-3.0.html).
+For a quick summary of your rights ("Can") and obligations ("Cannot" and "Must") under AGPLv3, please refer to [TLDRLegal](https://tldrlegal.com/license/gnu-affero-general-public-license-v3-(agpl-3.0)).
+
+If you would like to use JPMML-Evaluator in a proprietary software project, then it is possible to enter into a licensing agreement which makes JPMML-Evaluator available under the terms and conditions of the [BSD 3-Clause License](https://opensource.org/licenses/BSD-3-Clause) instead.
+Please initiate the conversation by submitting the [Request for Quotation](https://openscoring.io/rfq/) web form, or sending an e-mail.
 
 # Additional information #
 
 JPMML-Evaluator is developed and maintained by Openscoring Ltd, Estonia.
 
-Interested in using JPMML software in your application? Please contact [info@openscoring.io](mailto:info@openscoring.io)
+Interested in using [Java PMML API](https://github.com/jpmml) software in your company? Please contact [info@openscoring.io](mailto:info@openscoring.io)
