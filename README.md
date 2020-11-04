@@ -24,30 +24,30 @@ Java Evaluator API for Predictive Model Markup Language (PMML).
 
 JPMML-Evaluator is *de facto* the reference implementation of the PMML specification versions 3.0, 3.1, 3.2, 4.0, 4.1, 4.2, 4.3 and 4.4 for the Java/JVM platform:
 
-* Pre-processing of input fields according to the [DataDictionary](http://www.dmg.org/pmml/v4-4/DataDictionary.html) and [MiningSchema](http://www.dmg.org/pmml/v4-4/MiningSchema.html) elements:
+* Pre-processing of input fields according to the [DataDictionary](http://www.dmg.org/pmml/v4-4-1/DataDictionary.html) and [MiningSchema](http://www.dmg.org/pmml/v4-4-1/MiningSchema.html) elements:
   * Complete data type system.
   * Complete operational type system.
   * Treatment of outlier, missing and/or invalid values.
 * Model evaluation:
-  * [Association rules](http://www.dmg.org/pmml/v4-4/AssociationRules.html)
-  * [Cluster model](http://www.dmg.org/pmml/v4-4/ClusteringModel.html)
-  * [General regression](http://www.dmg.org/pmml/v4-4/GeneralRegression.html)
-  * [Naive Bayes](http://www.dmg.org/pmml/v4-4/NaiveBayes.html)
-  * [k-Nearest neighbors](http://www.dmg.org/pmml/v4-4/KNN.html)
-  * [Neural network](http://www.dmg.org/pmml/v4-4/NeuralNetwork.html)
-  * [Regression](http://www.dmg.org/pmml/v4-4/Regression.html)
-  * [Rule set](http://www.dmg.org/pmml/v4-4/RuleSet.html)
-  * [Scorecard](http://www.dmg.org/pmml/v4-4/Scorecard.html)
-  * [Support Vector Machine](http://www.dmg.org/pmml/v4-4/SupportVectorMachine.html)
-  * [Tree model](http://www.dmg.org/pmml/v4-4/TreeModel.html)
-  * [Ensemble model](http://www.dmg.org/pmml/v4-4/MultipleModels.html)
-* Post-processing of target fields according to the [Targets](http://www.dmg.org/pmml/v4-4/Targets.html) element:
+  * [Association rules](http://www.dmg.org/pmml/v4-4-1/AssociationRules.html)
+  * [Cluster model](http://www.dmg.org/pmml/v4-4-1/ClusteringModel.html)
+  * [General regression](http://www.dmg.org/pmml/v4-4-1/GeneralRegression.html)
+  * [Naive Bayes](http://www.dmg.org/pmml/v4-4-1/NaiveBayes.html)
+  * [k-Nearest neighbors](http://www.dmg.org/pmml/v4-4-1/KNN.html)
+  * [Neural network](http://www.dmg.org/pmml/v4-4-1/NeuralNetwork.html)
+  * [Regression](http://www.dmg.org/pmml/v4-4-1/Regression.html)
+  * [Rule set](http://www.dmg.org/pmml/v4-4-1/RuleSet.html)
+  * [Scorecard](http://www.dmg.org/pmml/v4-4-1/Scorecard.html)
+  * [Support Vector Machine](http://www.dmg.org/pmml/v4-4-1/SupportVectorMachine.html)
+  * [Tree model](http://www.dmg.org/pmml/v4-4-1/TreeModel.html)
+  * [Ensemble model](http://www.dmg.org/pmml/v4-4-1/MultipleModels.html)
+* Post-processing of target fields according to the [Targets](http://www.dmg.org/pmml/v4-4-1/Targets.html) element:
   * Rescaling and/or casting regression results.
   * Replacing a missing regression result with the default value.
   * Replacing a missing classification result with the map of prior probabilities.
-* Calculation of auxiliary output fields according to the [Output](http://www.dmg.org/pmml/v4-4/Output.html) element:
+* Calculation of auxiliary output fields according to the [Output](http://www.dmg.org/pmml/v4-4-1/Output.html) element:
   * Over 20 different result feature types.
-* Model verification according to the [ModelVerification](http://www.dmg.org/pmml/v4-4/ModelVerification.html) element.
+* Model verification according to the [ModelVerification](http://www.dmg.org/pmml/v4-4-1/ModelVerification.html) element.
 * Vendor extensions:
   * Memory and security sandboxing.
   * Java-backed model, expression and predicate types - integrate any 3rd party Java library into PMML data flow.
@@ -91,18 +91,18 @@ JPMML-Evaluator is fast and memory efficient. It can deliver one million scoring
 
 JPMML-Evaluator library JAR files (together with accompanying Java source and Javadocs JAR files) are released via [Maven Central Repository](https://repo1.maven.org/maven2/org/jpmml/).
 
-The current version is **1.4.15** (2 February, 2020).
+The current version is **1.5.4** (20 October, 2020).
 
 ```xml
 <dependency>
 	<groupId>org.jpmml</groupId>
 	<artifactId>pmml-evaluator</artifactId>
-	<version>1.4.15</version>
+	<version>1.5.4</version>
 </dependency>
 <dependency>
 	<groupId>org.jpmml</groupId>
 	<artifactId>pmml-evaluator-extension</artifactId>
-	<version>1.4.15</version>
+	<version>1.5.4</version>
 </dependency>
 ```
 
@@ -471,23 +471,23 @@ mvn clean install
 ```
 
 The resulting uber-JAR file `target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar` contains the following command-line applications:
-* `org.jpmml.evaluator.EvaluationExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/EvaluationExample.java).
-* `org.jpmml.evaluator.RecordCountingExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/RecordCountingExample.java).
-* `org.jpmml.evaluator.TestingExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/TestingExample.java).
+* `org.jpmml.evaluator.example.EvaluationExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/example/EvaluationExample.java).
+* `org.jpmml.evaluator.example.RecordCountingExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/example/RecordCountingExample.java).
+* `org.jpmml.evaluator.example.TestingExample` [(source)](https://github.com/jpmml/jpmml-evaluator/blob/master/pmml-evaluator-example/src/main/java/org/jpmml/evaluator/example/TestingExample.java).
 
 Evaluating model `model.pmml` with data records from `input.csv`. The predictions are stored to `output.csv`:
 ```
-java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.EvaluationExample --model model.pmml --input input.csv --output output.csv
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.example.EvaluationExample --model model.pmml --input input.csv --output output.csv
 ```
 
 Evaluating model `model.pmml` with data records from `input.csv`. The predictions are verified against data records from `expected-output.csv`:
 ```
-java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.TestingExample --model model.pmml --input input.csv --expected-output expected-output.csv
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.example.TestingExample --model model.pmml --input input.csv --expected-output expected-output.csv
 ```
 
 Enhancing model `model.pmml` with verification data records from `input_expected-output.csv`:
 ```
-java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.EnhancementExample --model model.pmml --verification input_expected_output.csv
+java -cp target/pmml-evaluator-example-executable-1.5-SNAPSHOT.jar org.jpmml.evaluator.example.EnhancementExample --model model.pmml --verification input_expected_output.csv
 ```
 
 Getting help:
@@ -516,7 +516,6 @@ JPMML-Evaluator is licensed under the terms and conditions of the [GNU Affero Ge
 For a quick summary of your rights ("Can") and obligations ("Cannot" and "Must") under AGPLv3, please refer to [TLDRLegal](https://tldrlegal.com/license/gnu-affero-general-public-license-v3-(agpl-3.0)).
 
 If you would like to use JPMML-Evaluator in a proprietary software project, then it is possible to enter into a licensing agreement which makes JPMML-Evaluator available under the terms and conditions of the [BSD 3-Clause License](https://opensource.org/licenses/BSD-3-Clause) instead.
-Please initiate the conversation by submitting the [Request for Quotation](https://openscoring.io/rfq/) web form, or sending an e-mail.
 
 # Additional information #
 

@@ -46,13 +46,9 @@
 		<module>pmml-evaluator</module>
 		<module>pmml-evaluator-example</module>
 		<module>pmml-evaluator-extension</module>
-		<module>pmml-evaluator-jacoco</module>
+		<module>pmml-evaluator-kryo</module>
 		<module>pmml-evaluator-reporting</module>
-		<module>pmml-evaluator-test</module>
-		<module>pmml-knime</module>
-		<module>pmml-rapidminer</module>
-		<module>pmml-rattle</module>
-		<module>pmml-sas</module>
+		<module>pmml-evaluator-testing</module>
 	</modules>
 
 	<scm>
@@ -85,7 +81,7 @@
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-evaluator-jacoco</artifactId>
+				<artifactId>pmml-evaluator-kryo</artifactId>
 				<version>1.5-SNAPSHOT</version>
 			</dependency>
 			<dependency>
@@ -100,50 +96,39 @@
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-evaluator-test</artifactId>
-				<version>1.5-SNAPSHOT</version>
-			</dependency>
-			<dependency>
-				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-knime</artifactId>
-				<version>1.5-SNAPSHOT</version>
-			</dependency>
-			<dependency>
-				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-rapidminer</artifactId>
-				<version>1.5-SNAPSHOT</version>
-			</dependency>
-			<dependency>
-				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-rattle</artifactId>
-				<version>1.5-SNAPSHOT</version>
-			</dependency>
-			<dependency>
-				<groupId>org.jpmml</groupId>
-				<artifactId>pmml-sas</artifactId>
+				<artifactId>pmml-evaluator-testing</artifactId>
 				<version>1.5-SNAPSHOT</version>
 			</dependency>
 
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-agent</artifactId>
-				<version>1.5.1</version>
+				<version>1.5.4</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-model</artifactId>
-				<version>1.5.1</version>
+				<version>1.5.4</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jpmml</groupId>
+				<artifactId>pmml-model-kryo</artifactId>
+				<version>1.5.4</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-model-metro</artifactId>
-				<version>1.5.1</version>
+				<version>1.5.4</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jpmml</groupId>
 				<artifactId>pmml-model-moxy</artifactId>
-				<version>1.5.1</version>
+				<version>1.5.4</version>
 				<exclusions>
+					<exclusion>
+						<groupId>org.eclipse.persistence</groupId>
+						<artifactId>org.eclipse.persistence.moxy</artifactId>
+					</exclusion>
 					<exclusion>
 						<groupId>org.glassfish.jaxb</groupId>
 						<artifactId>jaxb-runtime</artifactId>
@@ -160,7 +145,7 @@
 			<dependency>
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
-				<version>[19.0, 28.2-jar]</version>
+				<version>[19.0, 29.0-jre]</version>
 				<exclusions>
 					<exclusion>
 						<groupId>com.google.code.findbugs</groupId>
@@ -221,7 +206,7 @@
 			<dependency>
 				<groupId>junit</groupId>
 				<artifactId>junit</artifactId>
-				<version>4.12</version>
+				<version>4.13.1</version>
 				<scope>test</scope>
 			</dependency>
 		</dependencies>
@@ -241,27 +226,8 @@
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-enforcer-plugin</artifactId>
-				<version>1.4.1</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>enforce</goal>
-						</goals>
-						<configuration>
-							<rules>
-								<requireMavenVersion>
-									<version>3.2</version>
-								</requireMavenVersion>
-							</rules>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.1.1</version>
+				<version>3.2.0</version>
 				<configuration>
 					<javadocVersion>1.8</javadocVersion>
 				</configuration>

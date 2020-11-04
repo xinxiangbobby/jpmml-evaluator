@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -87,12 +88,13 @@ import org.jpmml.model.XPathUtil;
 
 public class NaiveBayesModelEvaluator extends ModelEvaluator<NaiveBayesModel> {
 
-	transient
 	private List<BayesInput> bayesInputs = null;
 
-	transient
 	private Map<FieldName, Map<Object, Number>> fieldCountSums = null;
 
+
+	private NaiveBayesModelEvaluator(){
+	}
 
 	public NaiveBayesModelEvaluator(PMML pmml){
 		this(pmml, PMMLUtil.findModel(pmml, NaiveBayesModel.class));
@@ -264,11 +266,6 @@ public class NaiveBayesModelEvaluator extends ModelEvaluator<NaiveBayesModel> {
 
 			// "For Naive Bayes models, continuous distribution types are restricted to Gaussian and Poisson distributions"
 			if((distribution instanceof GaussianDistribution) || (distribution instanceof PoissonDistribution)){
-
-				if(DistributionUtil.isNoOp(distribution)){
-					continue;
-				}
-
 				probability = DistributionUtil.probability(distribution, x);
 			} else
 
@@ -488,7 +485,12 @@ public class NaiveBayesModelEvaluator extends ModelEvaluator<NaiveBayesModel> {
 
 		@Override
 		public Map<FieldName, Map<Object, Number>> load(NaiveBayesModel naiveBayesModel){
-			return ImmutableMap.copyOf(calculateFieldCountSums(naiveBayesModel));
+			Map<FieldName, Map<Object, Number>> fieldCountSums = calculateFieldCountSums(naiveBayesModel);
+
+			fieldCountSums = fieldCountSums.entrySet().stream()
+				.collect(Collectors.toMap(entry -> entry.getKey(), entry -> ImmutableMap.copyOf(entry.getValue())));
+
+			return ImmutableMap.copyOf(fieldCountSums);
 		}
 	});
 }

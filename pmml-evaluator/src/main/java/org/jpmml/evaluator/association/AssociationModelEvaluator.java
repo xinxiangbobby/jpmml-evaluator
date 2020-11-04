@@ -34,6 +34,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.dmg.pmml.DataType;
 import org.dmg.pmml.Field;
 import org.dmg.pmml.FieldName;
@@ -72,21 +73,19 @@ import org.jpmml.evaluator.ValueFactory;
 
 public class AssociationModelEvaluator extends ModelEvaluator<AssociationModel> implements HasGroupFields, HasEntityRegistry<AssociationRule> {
 
-	transient
 	private List<InputField> groupInputFields = null;
 
-	transient
 	private BiMap<String, AssociationRule> entityRegistry = null;
 
-	transient
 	private Map<String, Item> items = null;
 
-	transient
 	private Map<String, Itemset> itemsets = null;
 
-	transient
 	private List<ItemValue> itemValues = null;
 
+
+	private AssociationModelEvaluator(){
+	}
 
 	public AssociationModelEvaluator(PMML pmml){
 		this(pmml, PMMLUtil.findModel(pmml, AssociationModel.class));
@@ -143,7 +142,7 @@ public class AssociationModelEvaluator extends ModelEvaluator<AssociationModel> 
 	protected List<TargetField> createTargetFields(){
 		List<TargetField> targetFields = super.createTargetFields();
 
-		if(targetFields.size() > 0){
+		if(!targetFields.isEmpty()){
 			throw createMiningSchemaException("Expected 0 target fields, got " + targetFields.size() + " target fields");
 		}
 
@@ -238,7 +237,7 @@ public class AssociationModelEvaluator extends ModelEvaluator<AssociationModel> 
 
 			FieldValue value = context.evaluate(name);
 
-			if(groupFields.size() == 0){
+			if(groupFields.isEmpty()){
 
 				if(FieldValueUtil.isMissing(value)){
 					continue;
@@ -405,9 +404,9 @@ public class AssociationModelEvaluator extends ModelEvaluator<AssociationModel> 
 			if(name == null){
 
 				// Categorical data style: no group fields, one or more active fields
-				if(groupFields.size() == 0){
+				if(groupFields.isEmpty()){
 
-					if(activeFields.size() < 1){
+					if(activeFields.isEmpty()){
 						throw modelEvaluator.createMiningSchemaException("Expected 1 or more active field(s), got " + activeFields.size() + " active fields");
 					}
 
@@ -525,7 +524,7 @@ public class AssociationModelEvaluator extends ModelEvaluator<AssociationModel> 
 
 		@Override
 		public Map<String, Item> load(AssociationModel associationModel){
-			return IndexableUtil.buildMap(associationModel.getItems());
+			return ImmutableMap.copyOf(IndexableUtil.buildMap(associationModel.getItems()));
 		}
 	});
 
@@ -533,7 +532,7 @@ public class AssociationModelEvaluator extends ModelEvaluator<AssociationModel> 
 
 		@Override
 		public Map<String, Itemset> load(AssociationModel associationModel){
-			return IndexableUtil.buildMap(associationModel.getItemsets());
+			return ImmutableMap.copyOf(IndexableUtil.buildMap(associationModel.getItemsets()));
 		}
 	});
 

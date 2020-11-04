@@ -40,6 +40,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import org.dmg.pmml.DataField;
 import org.dmg.pmml.DataType;
@@ -99,9 +100,11 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 
 	private ConcurrentMap<String, ModelEvaluator<?>> segmentModelEvaluators = new ConcurrentHashMap<>();
 
-	transient
 	private BiMap<String, Segment> entityRegistry = null;
 
+
+	private MiningModelEvaluator(){
+	}
 
 	public MiningModelEvaluator(PMML pmml){
 		this(pmml, PMMLUtil.findModel(pmml, MiningModel.class));
@@ -194,7 +197,7 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 	public FieldName getTargetName(){
 		List<TargetField> targetFields = super.getTargetFields();
 
-		if(targetFields.size() == 0){
+		if(targetFields.isEmpty()){
 			return Evaluator.DEFAULT_TARGET_NAME;
 		}
 
@@ -216,12 +219,17 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 		List<OutputField> outputFields = super.createOutputFields();
 
 		List<OutputField> nestedOutputFields = createNestedOutputFields();
-		if(nestedOutputFields.size() > 0){
+		if(!nestedOutputFields.isEmpty()){
 			// Depth-first ordering
 			return ImmutableList.copyOf(Iterables.concat(nestedOutputFields, outputFields));
 		}
 
 		return outputFields;
+	}
+
+	@Override
+	protected int getNumberOfVisibleFields(){
+		return -1;
 	}
 
 	@Override
@@ -588,7 +596,7 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 			}
 
 			List<String> segmentWarnings = segmentContext.getWarnings();
-			if(segmentWarnings.size() > 0){
+			if(!segmentWarnings.isEmpty()){
 
 				for(String segmentWarning : segmentWarnings){
 					context.addWarning(segmentWarning);
@@ -633,14 +641,14 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 		Segmentation.MultipleModelMethod multipleModelMethod = segmentation.getMultipleModelMethod();
 		switch(multipleModelMethod){
 			case SELECT_FIRST:
-				if(segmentResults.size() > 0){
+				if(!segmentResults.isEmpty()){
 					return segmentResults.get(0);
 				}
 				break;
 			case SELECT_ALL:
 				return selectAll(segmentResults);
 			case MODEL_CHAIN:
-				if(segmentResults.size() > 0){
+				if(!segmentResults.isEmpty()){
 					return segmentResults.get(segmentResults.size() - 1);
 				}
 				break;
@@ -652,7 +660,7 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 		}
 
 		// "If no segments have predicates that evaluate to true, then the result is a missing value"
-		if(segmentResults.size() == 0){
+		if(segmentResults.isEmpty()){
 			return Collections.singletonMap(getTargetName(), null);
 		}
 
@@ -748,11 +756,7 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 
 		Segmentation segmentation = miningModel.getSegmentation();
 
-		Configuration configuration = ensureConfiguration();
-
-		ModelEvaluatorFactory modelEvaluatorFactory = configuration.getModelEvaluatorFactory();
-
-		ModelEvaluator<?> modelEvaluator = modelEvaluatorFactory.newModelEvaluator(getPMML(), model);
+		Set<ResultFeature> extraResultFeatures = EnumSet.noneOf(ResultFeature.class);
 
 		Segmentation.MultipleModelMethod multipleModelMethod = segmentation.getMultipleModelMethod();
 		switch(multipleModelMethod){
@@ -763,20 +767,38 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 					Set<ResultFeature> resultFeatures = getResultFeatures();
 
 					if(!resultFeatures.isEmpty()){
-						modelEvaluator.addResultFeatures(resultFeatures);
-					}
-				}
-				// Falls through
-			default:
-				{
-					Set<ResultFeature> segmentResultFeatures = getSegmentResultFeatures(segmentId);
-
-					if(segmentResultFeatures != null && !segmentResultFeatures.isEmpty()){
-						modelEvaluator.addResultFeatures(segmentResultFeatures);
+						extraResultFeatures.addAll(resultFeatures);
 					}
 				}
 				break;
+			case AVERAGE:
+			case WEIGHTED_AVERAGE:
+			case MEDIAN:
+			case MAX:
+				{
+					switch(miningFunction){
+						case CLASSIFICATION:
+							extraResultFeatures.add(ResultFeature.PROBABILITY);
+							break;
+						default:
+							break;
+					}
+				}
+				break;
+			default:
+				break;
 		}
+
+		Set<ResultFeature> segmentResultFeatures = getSegmentResultFeatures(segmentId);
+		if(segmentResultFeatures != null && !segmentResultFeatures.isEmpty()){
+			extraResultFeatures.addAll(segmentResultFeatures);
+		}
+
+		Configuration configuration = ensureConfiguration();
+
+		ModelEvaluatorFactory modelEvaluatorFactory = configuration.getModelEvaluatorFactory();
+
+		ModelEvaluator<?> modelEvaluator = modelEvaluatorFactory.newModelEvaluator(getPMML(), model, extraResultFeatures);
 
 		MiningFunction segmentMiningFunction = model.getMiningFunction();
 
@@ -831,7 +853,7 @@ public class MiningModelEvaluator extends ModelEvaluator<MiningModel> implements
 			}
 		}
 
-		return result.asMap();
+		return Multimaps.asMap(result);
 	}
 
 	static

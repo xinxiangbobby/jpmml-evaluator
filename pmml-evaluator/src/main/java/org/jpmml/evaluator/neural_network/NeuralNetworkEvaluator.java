@@ -23,13 +23,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimaps;
 import org.dmg.pmml.DataField;
 import org.dmg.pmml.DerivedField;
 import org.dmg.pmml.Expression;
@@ -81,12 +85,13 @@ import org.jpmml.model.XPathUtil;
 
 public class NeuralNetworkEvaluator extends ModelEvaluator<NeuralNetwork> implements HasEntityRegistry<NeuralEntity> {
 
-	transient
 	private Map<FieldName, List<NeuralOutput>> neuralOutputMap = null;
 
-	transient
 	private BiMap<String, NeuralEntity> entityRegistry = null;
 
+
+	private NeuralNetworkEvaluator(){
+	}
 
 	public NeuralNetworkEvaluator(PMML pmml){
 		this(pmml, PMMLUtil.findModel(pmml, NeuralNetwork.class));
@@ -400,6 +405,11 @@ public class NeuralNetworkEvaluator extends ModelEvaluator<NeuralNetwork> implem
 				threshold = neuralNetwork.getThreshold();
 			}
 
+			Number leakage = neuralLayer.getLeakage();
+			if(leakage == null){
+				leakage = neuralNetwork.getLeakage();
+			}
+
 			Number altitude = neuralLayer.getAltitude();
 			if(altitude == null){
 				altitude = neuralNetwork.getAltitude();
@@ -506,7 +516,7 @@ public class NeuralNetworkEvaluator extends ModelEvaluator<NeuralNetwork> implem
 								output.add(neuronBias);
 							}
 
-							NeuralNetworkUtil.activateNeuronOutput(activationFunction, threshold, output);
+							NeuralNetworkUtil.activateNeuronOutput(activationFunction, threshold, leakage, output);
 						}
 						break;
 					case RADIAL_BASIS:
@@ -573,7 +583,12 @@ public class NeuralNetworkEvaluator extends ModelEvaluator<NeuralNetwork> implem
 	private Map<FieldName, List<NeuralOutput>> getNeuralOutputMap(){
 
 		if(this.neuralOutputMap == null){
-			this.neuralOutputMap = parseNeuralOutputs();
+			Map<FieldName, List<NeuralOutput>> neuralOutputMap = parseNeuralOutputs();
+
+			neuralOutputMap = neuralOutputMap.entrySet().stream()
+				.collect(Collectors.toMap(entry -> entry.getKey(), entry -> ImmutableList.copyOf(entry.getValue())));
+
+			this.neuralOutputMap = ImmutableMap.copyOf(neuralOutputMap);
 		}
 
 		return this.neuralOutputMap;
@@ -606,7 +621,7 @@ public class NeuralNetworkEvaluator extends ModelEvaluator<NeuralNetwork> implem
 			result.put(name, neuralOutput);
 		}
 
-		return (Map)result.asMap();
+		return Multimaps.asMap(result);
 	}
 
 	private static final LoadingCache<NeuralNetwork, BiMap<String, NeuralEntity>> entityCache = CacheUtil.buildLoadingCache(new CacheLoader<NeuralNetwork, BiMap<String, NeuralEntity>>(){

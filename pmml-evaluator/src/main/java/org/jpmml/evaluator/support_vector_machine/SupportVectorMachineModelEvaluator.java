@@ -89,9 +89,11 @@ import org.jpmml.model.XPathUtil;
 
 public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVectorMachineModel> {
 
-	transient
 	private Map<String, Object> vectorMap = null;
 
+
+	private SupportVectorMachineModelEvaluator(){
+	}
 
 	public SupportVectorMachineModelEvaluator(PMML pmml){
 		this(pmml, PMMLUtil.findModel(pmml, SupportVectorMachineModel.class));
@@ -266,7 +268,7 @@ public class SupportVectorMachineModelEvaluator extends ModelEvaluator<SupportVe
 				result = new DistanceDistribution<>(values);
 				break;
 			case ONE_AGAINST_ONE:
-				result = new VoteDistribution<>(values);
+				result = new VoteProbabilityDistribution<>(values);
 				break;
 			default:
 				throw new UnsupportedAttributeException(supportVectorMachineModel, classificationMethod);

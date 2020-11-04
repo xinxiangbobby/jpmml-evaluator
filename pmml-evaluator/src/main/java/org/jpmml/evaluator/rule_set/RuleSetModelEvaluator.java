@@ -62,9 +62,11 @@ import org.jpmml.evaluator.ValueMap;
 
 public class RuleSetModelEvaluator extends ModelEvaluator<RuleSetModel> implements HasEntityRegistry<SimpleRule> {
 
-	transient
 	private BiMap<String, SimpleRule> entityRegistry = null;
 
+
+	private RuleSetModelEvaluator(){
+	}
 
 	public RuleSetModelEvaluator(PMML pmml){
 		this(pmml, PMMLUtil.findModel(pmml, RuleSetModel.class));
@@ -125,7 +127,7 @@ public class RuleSetModelEvaluator extends ModelEvaluator<RuleSetModel> implemen
 		};
 
 		// Return the default prediction when no rules in the ruleset fire
-		if(firedRules.size() == 0){
+		if(firedRules.isEmpty()){
 			Object defaultScore = ruleSet.getDefaultScore();
 			if(defaultScore == null){
 				throw new MissingAttributeException(ruleSet, PMMLAttributes.RULESET_DEFAULTSCORE);

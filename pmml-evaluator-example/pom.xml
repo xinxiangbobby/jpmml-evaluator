@@ -41,7 +41,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.jpmml</groupId>
-			<artifactId>pmml-evaluator-test</artifactId>
+			<artifactId>pmml-evaluator-testing</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.jpmml</groupId>
@@ -90,7 +90,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>3.2.1</version>
+				<version>3.2.4</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
@@ -117,7 +117,7 @@
 										<Can-Retransform-Classes>true</Can-Retransform-Classes>
 										<Premain-Class>org.jpmml.agent.Main</Premain-Class>
 										<!-- org.jpmml:pmml-evaluator-example -->
-										<Main-Class>org.jpmml.evaluator.EvaluationExample</Main-Class>
+										<Main-Class>org.jpmml.evaluator.example.EvaluationExample</Main-Class>
 									</manifestEntries>
 								</transformer>
 							</transformers>

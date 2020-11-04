@@ -20,13 +20,17 @@ package org.jpmml.evaluator;
 
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.dmg.pmml.FieldName;
 import org.dmg.pmml.MiningSchema;
 import org.dmg.pmml.Model;
+import org.dmg.pmml.Output;
 import org.dmg.pmml.PMML;
+import org.dmg.pmml.ResultFeature;
 
 public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 
@@ -35,6 +39,8 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 	private Model model = null;
 
 	private ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
+
+	private Set<ResultFeature> extraResultFeatures = EnumSet.noneOf(ResultFeature.class);
 
 	private InputMapper inputMapper = null;
 
@@ -104,7 +110,9 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 
 		ModelEvaluatorFactory modelEvaluatorFactory = configuration.getModelEvaluatorFactory();
 
-		ModelEvaluator<?> modelEvaluator = modelEvaluatorFactory.newModelEvaluator(pmml, model);
+		Set<ResultFeature> extraResultFeatures = getExtraResultFeatures();
+
+		ModelEvaluator<?> modelEvaluator = modelEvaluatorFactory.newModelEvaluator(pmml, model, extraResultFeatures);
 		modelEvaluator.configure(configuration);
 
 		InputMapper inputMapper = getInputMapper();
@@ -202,6 +210,14 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		return configurationBuilder.getOutputFilter();
 	}
 
+	/**
+	 * <p>
+	 * Sets the filter for cleaning the model schema and model evaluation results from redundant output fields.
+	 * </p>
+	 *
+	 * @see OutputFilters#KEEP_ALL
+	 * @see OutputFilters#KEEP_FINAL_RESULTS
+	 */
 	public ModelEvaluatorBuilder setOutputFilter(OutputFilter outputFilter){
 		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
 
@@ -216,6 +232,13 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		return configurationBuilder.getDerivedFieldGuard();
 	}
 
+	/**
+	 * <p>
+	 * Sets a guard against recursive field declarations.
+	 * </p>
+	 *
+	 * @see FieldNameSet
+	 */
 	public ModelEvaluatorBuilder setDerivedFieldGuard(SymbolTable<FieldName> derivedFieldGuard){
 		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
 
@@ -230,6 +253,13 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		return configurationBuilder.getFunctionGuard();
 	}
 
+	/**
+	 * <p>
+	 * Sets a guard against recursive function declarations.
+	 * </p>
+	 *
+	 * @see FunctionNameStack
+	 */
 	public ModelEvaluatorBuilder setFunctionGuard(SymbolTable<String> functionGuard){
 		ConfigurationBuilder configurationBuilder = getConfigurationBuilder();
 
@@ -238,10 +268,36 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		return this;
 	}
 
+	public Set<ResultFeature> getExtraResultFeatures(){
+		return this.extraResultFeatures;
+	}
+
+	/**
+	 * <p>
+	 * Sets <em>extra</em> functional requirements.
+	 * </p>
+	 *
+	 * The final set of functional requirements is obtained by combining
+	 * default functional requirements (as declared by the {@link Output} element of the model)
+	 * with extra functional requirements.
+	 */
+	public ModelEvaluatorBuilder setExtraResultFeatures(Set<ResultFeature> extraResultFeatures){
+		this.extraResultFeatures = extraResultFeatures;
+
+		return this;
+	}
+
 	public InputMapper getInputMapper(){
 		return this.inputMapper;
 	}
 
+	/**
+	 * <p>
+	 * Sets a mapper for translating input field names from user namespace to model namespace.
+	 * </p>
+	 *
+	 * @see Evaluator#getInputFields()
+	 */
 	public ModelEvaluatorBuilder setInputMapper(InputMapper inputMapper){
 		this.inputMapper = inputMapper;
 
@@ -252,6 +308,14 @@ public class ModelEvaluatorBuilder implements EvaluatorBuilder, Serializable {
 		return this.resultMapper;
 	}
 
+	/**
+	 * <p>
+	 * Sets a mapper for translating result field names from model namespace to user namespace.
+	 * </p>
+	 *
+	 * @see Evaluator#getTargetFields()
+	 * @see Evaluator#getOutputFields()
+	 */
 	public ModelEvaluatorBuilder setResultMapper(ResultMapper resultMapper){
 		this.resultMapper = resultMapper;
 
